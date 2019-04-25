@@ -11,3 +11,6 @@ Jets = "2a57b368-ab28-5ba9-84aa-637fe7991822"
 JetPack = "24ef3835-3876-54c3-8a7a-956cf69ca0b2"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["JetPack", "Statistics", "Test"]
