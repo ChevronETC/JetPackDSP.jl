@@ -1,0 +1,13 @@
+name = "JetPackDSP"
+uuid = "b1babd66-454c-5c15-86a3-b3c308963df9"
+version = "0.0.0"
+
+[deps]
+DSP = "717857b8-e6f2-59f4-9121-6e50c889abd2"
+FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
+Jets = "2a57b368-ab28-5ba9-84aa-637fe7991822"
+
+[extras]
+JetPack = "24ef3835-3876-54c3-8a7a-956cf69ca0b2"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
