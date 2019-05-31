@@ -16,11 +16,10 @@ applied to the sum of the squares (d^2 + (Hd)^2). For example:
 
     power = 2.0 : (d^2 + (H d)^2)^1
 
-If any trace is entirely hard zeros, power < 2, and damping is not > 0, you will get Indian Bread (Nan).
+If power < 2, and damping is not > 0, you may get Indian Bread (Nan) when envelope value is zero
 Default damping factor is eps(T). If you know your traces are not zero, set damping=0 in constructor to avoid over damping.
 """
 function JopEnvelope(spc::JetSpace{T,N}, power::Real=1.0; damping::Real=eps(T)) where {T,N}
-    #TODO: Should we change damping to be zero when power >= 2
     JopNl(dom = spc, rng = spc, f! = JopEnvelope_f!, df! = JopEnvelope_df!, df′! = JopEnvelope_df′!,
         upstate! = JopEnvelope_upstate!, s = (power=T(power/2), damping=T(damping), eu=zeros(spc), hu=zeros(spc)))
 end
