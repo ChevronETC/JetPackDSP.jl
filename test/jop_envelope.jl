@@ -38,16 +38,38 @@ end
     @test lhs ≈ rhs
 end
 
-@testset "Envelope^($(power)) linearization test, dimension=$(length(N)), T=$(T)" for power in (0.25, 0.5, 1.0), T in (Float64,Float32), N in ( (n1,n2), (n1,n2,n3) )
+@testset "Envelope^($(power)) dot product test with zeros, dimension=$(length(N)), T=$(T)" for power in (0.25, 0.5, 1.0), T in (Float64,Float32), N in ( (n1,n2), (n1,n2,n3) )
+    op = JopEnvelope(JetSpace(T,N),power,damping=eps(T))
+    m0 = -1 .+ 2 .* rand(domain(op))
+    m0[1:n1] .= T(0.0)
+    J  = jacobian!(op, m0)
+    lhs, rhs = dot_product_test(J, -1 .+ 2 .* rand(domain(op)), -1 .+ 2 .* rand(range(op)))
+    @test isapprox(lhs, rhs) 
+end
+
+@testset "Envelope^($(power)) linearization test, dimension=$(length(N)), T=$(T)" for power in (0.25, 0.5, 1.0), damping in (0.0, 1e-16, 1e-8, 1e-4, 1e-2, 1, 100), T in (Float64,Float32), N in ( (n1,n2), (n1,n2,n3) )
     T = Float32
     N =  (n1,n2,n3)
-    F = JopEnvelope(JetSpace(T,N))
+    F = JopEnvelope(JetSpace(T,N), power, damping=T(damping))
     m0 = -1 .+ 2 .* rand(domain(F))
 
     mu = .1 * sqrt.([1.0,1.0/2.0,1.0/4.0,1.0/8.0,1.0/16.0,1.0/32.0,1.0/64.0,1.0/128.0,1.0/256.0,1.0/512.0])
     observed, expected = linearization_test(F, m0, μ=mu)
+    
     δ = minimum(abs, observed - expected)
     @test δ < .2
+end
+
+#TODO: Epsilon has to be large enough (~1e-4) for linearization test to pass when we have a column of zeros.  
+@testset "Envelope^($(power)) linearization test with zeros, dimension=$(length(N)), T=$(T)" for power in (0.25, 0.5, 1.0), damping in (1e-4, 1e-2, 1, 100), T in (Float64,Float32), N in ( (n1,n2), (n1,n2,n3) )
+        op = JopEnvelope(JetSpace(T,N),power,damping=T(damping))
+        m0 = -1 .+ 2 .* rand(domain(op))
+        m0[1:n1] .= T(0.0)
+        mu = .1 * sqrt.([1.0,1.0/2.0,1.0/4.0,1.0/8.0,1.0/16.0,1.0/32.0,1.0/64.0,1.0/128.0,1.0/256.0,1.0/512.0])
+        
+        observed, expected = linearization_test(op, m0, μ=mu)
+        δ = minimum(abs, observed - expected)
+        @test δ < .2
 end
 
 nothing
