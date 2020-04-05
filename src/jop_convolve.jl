@@ -64,7 +64,7 @@ m = rand(domain(P))
 d = R'∘S∘P*m
 ```
 """
-function JopConvolve(dom::JetSpace{T}, rng::JetSpace{T}, h::Array{T}; x0=(0.0,), dx=(1.0,)) where {T<:Real}
+function JopConvolve(dom::JetSpace{T}, rng::JetSpace{T}, h::AbstractArray{T}; x0=(0.0,), dx=(1.0,)) where {T<:Real}
     ndim = ndims(h)
 
     x0 = length(x0) == 1 ? ntuple(i->x0[1], ndim) : x0
@@ -146,7 +146,7 @@ end
 
 export JopConvolve
 
-function JopConvolve_df!(d::Array{T,N}, m::Array{T,N}; mpad, dpad, H, kwargs...) where {T<:Real,N}
+function JopConvolve_df!(d::AbstractArray{T,N}, m::AbstractArray{T,N}; mpad, dpad, H, kwargs...) where {T<:Real,N}
     ndom = size(m)
     nrng = size(d)
     nfft = size(H)
@@ -167,7 +167,7 @@ function JopConvolve_df!(d::Array{T,N}, m::Array{T,N}; mpad, dpad, H, kwargs...)
     d
 end
 
-function JopConvolve_df′!(m::Array{T,N}, d::Array{T,N}; mpad, dpad, H, kwargs...) where {T<:Real,N}
+function JopConvolve_df′!(m::AbstractArray{T,N}, d::AbstractArray{T,N}; mpad, dpad, H, kwargs...) where {T<:Real,N}
     ndom = size(m)
     nrng = size(d)
     nfft = size(H)
