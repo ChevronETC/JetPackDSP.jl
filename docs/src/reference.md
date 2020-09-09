@@ -1,10 +1,9 @@
-Jets.jl DSP operator pack
-
-```@index
-```
-
+# Reference
 ```@docs
   JopConvolve
   JopEnvelope
   JopFilter
+```
+# Index
+```@index
 ```
