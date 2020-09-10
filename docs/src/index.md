@@ -101,6 +101,16 @@ power = 2.0 : (d^2 + (H d)^2)^1
 
 If power < 2, and damping is not > 0, you may get NaN when envelope value is zero Default damping factor is eps(T). If you know your traces are not zero, set damping=0 in constructor to avoid over damping.
 
+**Example**
+
+**1D**
+```julia
+using Jets, JetPackDSP
+F = JopEnvelope(JetSpace(Float64,64))
+m = -1 .+ 2*rand(domain(F))
+d = F*m
+```
+
 # JetPackDSP.JopFilter
 ```julia
 A = JopFilter(spc, responsetype, designmethod)
