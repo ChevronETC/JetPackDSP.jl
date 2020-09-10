@@ -20,6 +20,7 @@ A = JopConvolve(dom, rng, h [, optional parameters])
 **1D, causal**
 
 ```julia
+using Jets, JetPackDSP
 A = JopConvolve(JetSpace(Float64,128), JetSpace(Float64,128), rand(32))
 m = zeros(domain(A))
 m[64] = 1.0
@@ -73,6 +74,7 @@ where the optional arguments and their default values are:
 **2D Smoothing Example**
 
 ```julia
+using Jets, JetPack, JetPackDSP
 P = JopPad(JetSpace(Float64,256,256), -10:256+11, -10:256+11, extend=true)
 S = JopConvolve(range(P), smoother=:rect, n=(1,1))
 R = JopPad(JetSpace(Float64,256,256), -10:256+11, -10:256+11, extend=false)
@@ -97,7 +99,7 @@ The passed in power is multiplied by 1/2, and is the power for simple envelope, 
 power = 2.0 : (d^2 + (H d)^2)^1
 ```
 
-If power < 2, and damping is not > 0, you may get Indian Bread (Nan) when envelope value is zero Default damping factor is eps(T). If you know your traces are not zero, set damping=0 in constructor to avoid over damping.
+If power < 2, and damping is not > 0, you may get NaN when envelope value is zero Default damping factor is eps(T). If you know your traces are not zero, set damping=0 in constructor to avoid over damping.
 
 # JetPackDSP.JopFilter
 ```julia
@@ -111,7 +113,7 @@ where `A` is a filter applied to a signal in `spc::JotSpace`, and built using `r
 **1D**
 
 ```
-using JetPackDSP, Jets
+using DSP, JetPackDSP, Jets
 A = JopFilter(JetSpace(Float64,512), Highpass(10.0, fs=125), Butterworth(4))
 d = A*rand(domain(A))
 ```
@@ -119,7 +121,7 @@ d = A*rand(domain(A))
 **2D**
 
 ```
-using JetPackDSP, Jets
+using DSP, JetPackDSP, Jets
 A = JopFilter(JetSpace(Float64,512,10), Highpass(10.0, fs=125), Butterworth(4))
 d = A*rand(domain(A))
 ```
