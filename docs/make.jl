@@ -1,7 +1,3 @@
-using Documenter, DocumenterMarkdown, JetPackDSP
+using Documenter, JetPackDSP
 
-makedocs(
-    format = Markdown(),
-    sitename = "JetPackDSP"
-)
-cp("build/README.md", "../README.md", force=true)
+makedocs(sitename="JetPackDSP", modules=[JetPackDSP])
