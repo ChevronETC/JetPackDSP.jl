@@ -11,7 +11,7 @@ Jets = "2a57b368-ab28-5ba9-84aa-637fe7991822"
 julia = "1"
 DSP = "0.6"
 FFTW = "1"
-Jets = "0.9,1" 
+Jets = "1" 
 
 
 [extras]
