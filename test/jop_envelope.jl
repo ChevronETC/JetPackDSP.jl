@@ -57,7 +57,7 @@ end
     observed, expected = linearization_test(F, m0, μ=mu)
     
     δ = minimum(abs, observed - expected)
-    @test δ < .2
+    @test δ < .3
 end
 
 #TODO: Epsilon has to be large enough (~1e-4) for linearization test to pass when we have a column of zeros.  
