@@ -64,34 +64,26 @@ m = rand(domain(P))
 d = R'∘S∘P*m
 ```
 """
-function JopConvolve(dom::JetSpace{T}, rng::JetSpace{T}, h::AbstractArray{T}; x0=(0.0,), dx=(1.0,)) where {T<:Real}
-    ndim = ndims(h)
+function JopConvolve(dom::JetSpace{T,N}, rng::JetSpace{T,N}, h::AbstractArray{T,N}; x0=(0.0,), dx=(1.0,)) where {T<:Real,N}
+    x0 = (length(x0) == 1 ? ntuple(i->x0[1], N) : x0)::NTuple{N,T}
+    dx = (length(dx) == 1 ? ntuple(i->dx[1], N) : dx)::NTuple{N,T}
 
-    x0 = length(x0) == 1 ? ntuple(i->x0[1], ndim) : x0
-    dx = length(dx) == 1 ? ntuple(i->dx[1], ndim) : dx
-
-    if length(x0) != ndim
-        throw(ArgumentError("Expected length(x0)=1 or length(x0)=ndims(h), got length(x0)=$(length(x0))"))
-    end
-    if length(dx) != ndim
-        throw(ArgumentError("Expected length(dx)=1 or length(dx)=ndims(h), got length(dx)=$(length(dx))"))
-    end
+    length(x0) == N || error("Expected length(x0)=1 or length(x0)=ndims(h), got length(x0)=$(length(x0))")
+    length(dx) == N || error("Expected length(dx)=1 or length(dx)=ndims(h), got length(dx)=$(length(dx))")
 
     nker = size(h)
     ndom = size(dom)
     nrng = size(rng)
-    ntot = map(idim->nextprod([2;3;5;7], nker[idim] + ndom[idim] - 1), ntuple(idim->idim, ndim))
+    ntot = ntuple(idim->nextprod((2,3,5,7), nker[idim] + ndom[idim] - 1), N)::NTuple{N,Int}
 
-    if ntot < nrng
-        throw(ArgumentError("Range must be greater than or equal size(model)+size(h)-1"))
-    end
+    ntot < nrng && error("Range must be greater than or equal size(model)+size(h)-1")
 
-    nfft = map(idim->idim == 1 ? div(ntot[idim],2) + 1 : ntot[idim], ntuple(idim->idim, ndim))
-    dfft = map(idim->2*pi/dx[idim]/ntot[idim], ntuple(idim->idim, ndim))
+    nfft = ntuple(idim->idim == 1 ? div(ntot[idim],2) + 1 : ntot[idim], N)::NTuple{N,Int}
+    dfft = ntuple(idim->2*T(pi)/dx[idim]/ntot[idim], N)::NTuple{N,T}
 
-    k = Array{Array{T,1}}(undef, ndim)
+    k = Vector{Vector{T}}(undef, N)
     k[1] = dfft[1]*collect(0:nfft[1]-1)
-    for idim = 2:ndim
+    for idim = 2:N
         nfft_p = div(nfft[idim]+1, 2)
         nfft_n = div(nfft[idim], 2)
         k[idim] = dfft[idim]*[collect(0:nfft_p-1) ; collect(-nfft_n:1:-1)]
@@ -104,28 +96,25 @@ function JopConvolve(dom::JetSpace{T}, rng::JetSpace{T}, h::AbstractArray{T}; x0
 
     H = rfft(hpad)
 
-    for i in CartesianIndices(nfft)
-        H[i] *= exp(-im*mapreduce(idim->k[idim][i[idim]]*x0[idim], +, 1:ndim))
-    end
+    phaseshift!(H, k, x0)
 
     JopLn(dom = dom, rng = rng, df! = JopConvolve_df!, df′! = JopConvolve_df′!,
-        s = (mpad=Array{T}(undef,ntot), dpad=Array{T}(undef,ntot), H=H))
+        s = (mpad=Array{T,N}(undef,ntot), dpad=Array{T,N}(undef,ntot), H=H))
 end
 JopConvolve(spc::JetSpace, h::Array; x0=(0.0,), dx=(1.0,)) = JopConvolve(spc, spc, h, x0=x0, dx=dx)
 
 # Convenience constructor for n-dimensional smoothing
-function JopConvolve(spc::JetSpace; smoother=:gaussian, n=(128,), sigma=(0.5,))
+function JopConvolve(spc::JetSpace{T,N}; smoother=:gaussian, n=(128,), sigma=(0.5,)) where {T,N}
     if smoother != :gaussian && smoother != :triang && smoother != :rect
-        throw(ArgumentError("expected smoother=:gaussian, smoother=:triang or smoother=:rect, got smoother=$(smoother)"))
+        error("expected smoother=:gaussian, smoother=:triang or smoother=:rect, got smoother=$(smoother)")
     end
-    ndim = ndims(spc)
-    n = length(n) == 1 ? ntuple(idim->2*n[1]+1, ndim) : ntuple(idim->2*n[idim]+1, ndim)
-    sigma = length(sigma) == 1 ? ntuple(idim->sigma[1], ndim) : sigma
-    dx = ntuple(idim->one(eltype(spc)), ndim)
-    x0 = ntuple(idim->-one(eltype(spc))*div(n[idim]-1,2), ndim)
+    n = length(n) == 1 ? ntuple(idim->2*n[1]+1, N) : ntuple(idim->2*n[idim]+1, N)
+    sigma = length(sigma) == 1 ? ntuple(idim->sigma[1], N) : sigma
+    dx = ntuple(idim->one(T), N)
+    x0 = ntuple(idim->-one(T)*div(n[idim]-1,2), N)
 
-    w = Array{Array{Float64,1}}(undef, ndim)
-    for idim = 1:ndim
+    w = Vector{Vector{T}}(undef, N)
+    for idim = 1:N
         if smoother == :gaussian
             w[idim] = gaussian(n[idim],sigma[idim])
         elseif smoother == :triang
@@ -135,16 +124,33 @@ function JopConvolve(spc::JetSpace; smoother=:gaussian, n=(128,), sigma=(0.5,))
         end
     end
 
-    h = zeros(eltype(spc), n)
-    for i in CartesianIndices(n)
-        h[i] = mapreduce(idim->w[idim][i[idim]], *, 1:ndim)
-    end
-    h[:] /= sum(h)
+    h = filter!(ones(T, n), w)
 
     JopConvolve(spc, spc, h, x0=x0, dx=dx)
 end
 
 export JopConvolve
+
+function phaseshift!(H::Array{T,N}, k, x0) where {T,N}
+    for i in CartesianIndices(H)
+        f = zero(T)
+        for idim = 1:N
+            f += k[idim][i[idim]]*x0[idim]
+        end
+        H[i] *= @fastmath exp(-im*f)
+    end
+end
+
+function filter!(h::Array{T,N}, w) where {T,N}
+    for i in CartesianIndices(h)
+        h[i] = 1
+        for idim = 1:N
+            h[i] *= w[idim][i[idim]]
+        end
+    end
+    h ./= sum(h)
+    h
+end
 
 function JopConvolve_df!(d::AbstractArray{T,N}, m::AbstractArray{T,N}; mpad, dpad, H, kwargs...) where {T<:Real,N}
     ndom = size(m)
