@@ -1,6 +1,6 @@
 name = "JetPackDSP"
 uuid = "b1babd66-454c-5c15-86a3-b3c308963df9"
-version = "1.0.0"
+version = "1.0.1"
 
 [deps]
 DSP = "717857b8-e6f2-59f4-9121-6e50c889abd2"
