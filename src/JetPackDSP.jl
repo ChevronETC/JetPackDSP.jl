@@ -1,6 +1,6 @@
 module JetPackDSP
 
-using DSP, FFTW, Jets, Base.Threads
+using DSP, FFTW, Jets
 
 include("jop_convolve.jl")
 include("jop_envelope.jl")
