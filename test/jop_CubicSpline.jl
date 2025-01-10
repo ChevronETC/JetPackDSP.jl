@@ -1,6 +1,6 @@
-using Jets, LinearAlgebra, IterativeSolvers, Test
+using Jets, LinearAlgebra, IterativeSolvers, Test, JetPackDSP
 
-include("../src/jop_CubicSpline.jl")
+PLOTS = parse(Int32, get(ENV, "PLOTS", "0"))
 
 n1 = 101
 n2 = 60
@@ -54,21 +54,22 @@ end
 
     @test norm(d - dsmth) / norm(d) < 0.01
 
-    using PyPlot
-    close("all")
+    if PLOTS == 1
+        using PyPlot
+        close("all")
 
-    figure(figsize=(8,4))
-    plot(x, d, label="Original",linewidth=3,color="black")
-    plot(xdec, m, label="Spline",linewidth=2,color="blue")
-    plot(x, dsmth, label="Smoothed",linewidth=1,color="red")
-    xlim([0,1])
-    xlabel("x")
-    ylabel("y")
-    title("JopCubicSpline - 1D")
-    legend()
-    tight_layout()
-    savefig("smoothing1D.JopCubicSpline.png", dpi=100) 
-
+        figure(figsize=(8,4))
+        plot(x, d, label="Original",linewidth=3,color="black")
+        plot(xdec, m, label="Spline",linewidth=2,color="blue")
+        plot(x, dsmth, label="Smoothed",linewidth=1,color="red")
+        xlim([0,1])
+        xlabel("x")
+        ylabel("y")
+        title("JopCubicSpline - 1D")
+        legend()
+        tight_layout()
+        savefig("smoothing1D.JopCubicSpline.png", dpi=100) 
+    end
 end
 
 @testset "JopCubicSpline, smoothing test - 2D" begin
@@ -90,23 +91,23 @@ end
 
     @test norm(d - dsmth) / norm(d) < 0.01
 
-    using PyPlot
-    close("all")
+    if PLOTS == 1
+        using PyPlot
+        close("all")
 
-    figure(figsize=(8,8))
-    subplot(2,2,1)
-    imshow(d, aspect="auto", extent=[0,1,1,0], clim=[-1, 1], cmap="seismic")
-    title("Original")
-    subplot(2,2,2)
-    imshow(m, aspect="auto", extent=[0,1,1,0], clim=[-1, 1], cmap="seismic")
-    title("Spline")
-    subplot(2,2,3)
-    imshow(dsmth, aspect="auto", extent=[0,1,1,0], clim=[-1, 1], cmap="seismic")
-    title("Smoothed")
-
-    tight_layout()
-    savefig("smoothing2D.JopCubicSpline.png", dpi=100) 
-
+        figure(figsize=(8,8))
+        subplot(2,2,1)
+        imshow(d, aspect="auto", extent=[0,1,1,0], clim=[-1, 1], cmap="seismic")
+        title("Original")
+        subplot(2,2,2)
+        imshow(m, aspect="auto", extent=[0,1,1,0], clim=[-1, 1], cmap="seismic")
+        title("Spline")
+        subplot(2,2,3)
+        imshow(dsmth, aspect="auto", extent=[0,1,1,0], clim=[-1, 1], cmap="seismic")
+        title("Smoothed")
+        tight_layout()
+        savefig("smoothing2D.JopCubicSpline.png", dpi=100) 
+    end
 end
 
 @testset "JopCubicSpline, smoothing test - 3D" begin
@@ -115,7 +116,6 @@ end
     rng = JetSpace(Float32, n1, n2, n3)
     factor = (n1 - 1) * (n2 - 1) * (n3 - 1) / ((nc1 - 1) * (nc2 - 1) * (nc3 - 1))
     
-    include("../src/jop_CubicSpline.jl")
     A = JopCubicSpline(dom, rng)
 
     x = LinRange(0,1,n1)
@@ -134,23 +134,23 @@ end
     dsmth = A * m
     @test norm(d - dsmth) / norm(d) < 0.01
 
-    using PyPlot
-    close("all")
+    if PLOTS == 1
+        using PyPlot
+        close("all")
 
-    figure(figsize=(8,8))
-    subplot(2,2,1)
-    imshow(d[:,:,div(n3,2)], aspect="auto", extent=[0,1,1,0], clim=[-1, 1], cmap="seismic")
-    title("Original")
-    subplot(2,2,2)
-    imshow(m[:,:,div(nc3,2)], aspect="auto", extent=[0,1,1,0], clim=[-1, 1], cmap="seismic")
-    title("Spline")
-    subplot(2,2,3)
-    imshow(dsmth[:,:,div(n3,2)], aspect="auto", extent=[0,1,1,0], clim=[-1, 1], cmap="seismic")
-    title("Smoothed")
-
-    tight_layout()
-    savefig("smoothing3D.JopCubicSpline.png", dpi=100) 
-
+        figure(figsize=(8,8))
+        subplot(2,2,1)
+        imshow(d[:,:,div(n3,2)], aspect="auto", extent=[0,1,1,0], clim=[-1, 1], cmap="seismic")
+        title("Original")
+        subplot(2,2,2)
+        imshow(m[:,:,div(nc3,2)], aspect="auto", extent=[0,1,1,0], clim=[-1, 1], cmap="seismic")
+        title("Spline")
+        subplot(2,2,3)
+        imshow(dsmth[:,:,div(n3,2)], aspect="auto", extent=[0,1,1,0], clim=[-1, 1], cmap="seismic")
+        title("Smoothed")
+        tight_layout()
+        savefig("smoothing3D.JopCubicSpline.png", dpi=100)
+    end
 end
 
 @testset "JopCubicSpline, smoothing test - 3D with multicomponents" begin
@@ -181,23 +181,23 @@ end
 
     @test norm(d - dsmth) / norm(d) < 0.01
 
-    using PyPlot
-    close("all")
+    if PLOTS == 1
+        using PyPlot
+        close("all")
 
-    figure(figsize=(8,8))
-    subplot(2,2,1)
-    imshow(d[:,:,div(n3,2),div(n4,2)], aspect="auto", extent=[0,1,1,0], clim=[-1, 1], cmap="seismic")
-    title("Original")
-    subplot(2,2,2)
-    imshow(m[:,:,div(nc3,2),div(n4,2)], aspect="auto", extent=[0,1,1,0], clim=[-1, 1], cmap="seismic")
-    title("Spline")
-    subplot(2,2,3)
-    imshow(dsmth[:,:,div(n3,2),div(n4,2)], aspect="auto", extent=[0,1,1,0], clim=[-1, 1], cmap="seismic")
-    title("Smoothed")
-
-    tight_layout()
-    savefig("smoothing3D-MC.JopCubicSpline.png", dpi=100) 
-
+        figure(figsize=(8,8))
+        subplot(2,2,1)
+        imshow(d[:,:,div(n3,2),div(n4,2)], aspect="auto", extent=[0,1,1,0], clim=[-1, 1], cmap="seismic")
+        title("Original")
+        subplot(2,2,2)
+        imshow(m[:,:,div(nc3,2),div(n4,2)], aspect="auto", extent=[0,1,1,0], clim=[-1, 1], cmap="seismic")
+        title("Spline")
+        subplot(2,2,3)
+        imshow(dsmth[:,:,div(n3,2),div(n4,2)], aspect="auto", extent=[0,1,1,0], clim=[-1, 1], cmap="seismic")
+        title("Smoothed")
+        tight_layout()
+        savefig("smoothing3D-MC.JopCubicSpline.png", dpi=100) 
+    end
 end
 
 nothing
