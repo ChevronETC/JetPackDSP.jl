@@ -1,3 +1,14 @@
 docs/build
 tune.json
 results.md
+*.ipynb_checkpoints
+*.swp
+*.bin
+test/*png
+test/*.txt
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.synctex.gz
+*.toc
