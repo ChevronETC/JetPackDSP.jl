@@ -1,6 +1,6 @@
 module JetPackDSP
 
-using DSP, FFTW, Jets, Base.Threads, CRC32c
+using DSP, FFTW, Jets, Base.Threads
 
 include("jop_convolve.jl")
 include("jop_envelope.jl")
