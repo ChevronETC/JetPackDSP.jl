@@ -39,8 +39,8 @@ end
 
 function focusing_forward(m::AbstractArray{T},
                   weights::AbstractArray{T},
-                  alpha::Real=1,
-                  conserve_energy::Bool=false) where {T<:AbstractFloat}
+                  alpha::Real,
+                  conserve_energy::Bool) where {T<:AbstractFloat}
     nt = size(m, 1)
     alphaT = T(abs(alpha))
     t = (1:nt) .- div(nt+1, 2)
@@ -58,7 +58,6 @@ function focusing_forward(m::AbstractArray{T},
 
     @inbounds begin
         @threads for I in trailing_inds
-        # for I in trailing_inds
             idx = I.I
             wgt = weights[1, idx...]
 
@@ -87,8 +86,8 @@ end
 
 function focusing_adjoint(d::AbstractArray{T},
                   weights::AbstractArray{T},
-                  alpha::Real=1,
-                  conserve_energy::Bool=false) where {T<:AbstractFloat}
+                  alpha::Real,
+                  conserve_energy::Bool) where {T<:AbstractFloat}
     nt = size(d, 1)
     alphaT = T(abs(alpha))
     t = (1:nt) .- div(nt+1, 2)
@@ -107,7 +106,6 @@ function focusing_adjoint(d::AbstractArray{T},
 
     @inbounds begin
         @threads for I in trailing_inds
-        # for I in trailing_inds
             idx = I.I
             wgt = weights[1, idx...]
 

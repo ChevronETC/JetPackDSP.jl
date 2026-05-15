@@ -72,7 +72,6 @@ function windowed_correlation(m::AbstractArray{T}, x::AbstractArray{T}, lags::Ve
     @inbounds begin
         # loop over trailing dims
         @threads for I in trailing_inds
-        # for I in trailing_inds
             idx = I.I
             for i in 1:nwin
                 lo = starts[i]; hi = ends[i]
@@ -160,7 +159,6 @@ function windowed_convolution(d::AbstractArray{T}, x::AbstractArray{T}, lags::Ve
     @inbounds begin
         # loop over trailing dims
         @threads for I in trailing_inds
-        # for I in trailing_inds
             idx = I.I
             for i in 1:nwin
                 lo = starts[i]; hi = ends[i]
@@ -299,7 +297,6 @@ function sliding_correlation(m::AbstractArray{T}, x::AbstractArray{T}, winlen::I
     @inbounds begin
         # loop over trailing dims
         @threads for I in trailing_inds
-        # for I in trailing_inds
             idx = I.I
             # padded traces
             x_padded = zeros(T, nt + 2*npad)
@@ -351,7 +348,6 @@ function sliding_convolution(d::AbstractArray{T}, x::AbstractArray{T}, winlen::I
     @inbounds begin
         # loop over trailing dims
         @threads for I in trailing_inds
-        # for I in trailing_inds
             idx = I.I
             # padded traces
             x_padded = zeros(T, nt + 2*npad)
