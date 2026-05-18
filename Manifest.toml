@@ -2,7 +2,7 @@
 
 julia_version = "1.12.5"
 manifest_format = "2.0"
-project_hash = "93e09c42f1224bf1eb2e207e1057dad408c2ac96"
+project_hash = "33a72192255f03bb5a3df132de57e0d38e3d9932"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -133,7 +133,7 @@ version = "1.8.0"
 deps = ["DSP", "FFTW", "Jets"]
 path = "."
 uuid = "b1babd66-454c-5c15-86a3-b3c308963df9"
-version = "1.1.1"
+version = "1.2.0"
 
 [[deps.Jets]]
 deps = ["CRC32c", "LinearAlgebra", "Random"]

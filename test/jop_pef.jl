@@ -1,6 +1,7 @@
 using Jets, JetPack, JetPackDSP, Statistics, Test, Random, LinearAlgebra
+using InteractiveUtils
 
-@test_skip @testset "PEF - dot product" begin
+@testset "PEF - dot product" begin
     Random.seed!(1234)
     nt, nx, ny = 21, 4, 1
     dom = JetSpace(Float64, (nt, nx, ny))
@@ -36,7 +37,7 @@ using Jets, JetPack, JetPackDSP, Statistics, Test, Random, LinearAlgebra
     @test isapprox((lhs - rhs)/(lhs + rhs), 0.0, atol=1e-7)
 end
 
-@test_skip @testset "PEF - linearization - λ = $λ " for λ in (1e-3, 1)
+@testset "PEF - linearization - λ = $λ " for λ in (1e-3, 1)
     Random.seed!(1234)
     nt = 51
     dom = JetSpace(Float64, (nt,))
@@ -66,7 +67,7 @@ end
     @test abs(rate - 2) < 0.1
 end
 
-@test_skip @testset "PEF - gradient" begin
+@testset "PEF - gradient" begin
     Random.seed!(1234)
     nt = 51
     dom = JetSpace(Float64, (nt,))
@@ -105,7 +106,7 @@ end
     @test all(e .< 1e-4)
 end
 
-@test_skip @testset "PEF 1D - 2D parity" begin
+@testset "PEF 1D - 2D parity" begin
     Random.seed!(1234)
     nt, nx, ny = 21, 5, 3
     dom = JetSpace(Float64, (nt, nx, ny))
@@ -122,7 +123,7 @@ end
     @test error < 1e-7
 end
 
-@test_skip @testset "PEF 1D - 2D transpose parity" begin
+@testset "PEF 1D - 2D transpose parity" begin
     Random.seed!(1234)
     nt, nx, ny = 21, 5, 3
     dom = JetSpace(Float64, (nx, nt, ny))
@@ -140,7 +141,7 @@ end
     @test error < 1e-7
 end
 
-@test_skip @testset "PEF2D - dot product" begin
+@testset "PEF2D - dot product" begin
     Random.seed!(1234)
     nt, nx, ny = 21, 11, 3
     dom = JetSpace(Float64, (nt, nx, ny))
@@ -176,7 +177,7 @@ end
     @test isapprox((lhs - rhs)/(lhs + rhs), 0.0, atol=1e-7)
 end
 
-@test_skip @testset "PEF2D - linearization - λ = $λ " for λ in (1e-3, 1)
+@testset "PEF2D - linearization - λ = $λ " for λ in (1e-3, 1)
     Random.seed!(1234)
     nt, nx = 51, 21
     dom = JetSpace(Float64, (nt, nx))

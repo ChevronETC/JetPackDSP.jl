@@ -29,16 +29,6 @@ end
 
 export JopWindowedCorrelation1D
 
-function JopWindowedCorrelation1D_df!(d::AbstractArray{T}, m::AbstractArray{T}; x, lags, taper, dom, rng, kwargs...) where {T<:AbstractFloat}
-    d = windowed_correlation(m, x, lags, taper, dom, rng)
-    d
-end
-
-function JopWindowedCorrelation1D_df′!(m::AbstractArray{T}, d::AbstractArray{T}; x, lags, taper, dom, rng, kwargs...) where {T<:AbstractFloat}
-    m = windowed_convolution(d, x, lags, taper, dom, rng)
-    m
-end
-
 @inline function _taper_weights_vec(full_taper::Vector{T}, n::Int) where {T<:AbstractFloat}
     if n <= 0
         return Vector{T}(undef, 0)           # always a Vector{T}
@@ -47,11 +37,11 @@ end
     end
 end
 
-function windowed_correlation(m::AbstractArray{T}, x::AbstractArray{T}, lags::Vector{Int}, taper::Int, dom, rng) where {T<:AbstractFloat}
+function JopWindowedCorrelation1D_df!(d::AbstractArray{T}, m::AbstractArray{T}; x::AbstractArray{T}, lags::Vector{Int}, taper::Int, dom, rng, kwargs...) where {T<:AbstractFloat}
     if size(dom) != size(m)
         error("Model vector size does not match domain size")
     end
-    d = zeros(T, size(rng)...)
+    d .= 0
 
     nt = size(dom, 1)
     nwin = size(rng, 2)
@@ -131,13 +121,11 @@ function windowed_correlation(m::AbstractArray{T}, x::AbstractArray{T}, lags::Ve
     d
 end
 
-function windowed_convolution(d::AbstractArray{T}, x::AbstractArray{T}, lags::Vector{Int}, taper::Int, dom, rng) where {T<:AbstractFloat}
+function JopWindowedCorrelation1D_df′!(m::AbstractArray{T}, d::AbstractArray{T}; x::AbstractArray{T}, lags::Vector{Int}, taper::Int, dom, rng, kwargs...) where {T<:AbstractFloat}
     if size(rng) != size(d)
         error("Data vector size does not match range size")
     end
-    m = zeros(T, size(dom)...)
-
-    fill!(m, zero(T))
+    m .= 0
 
     nt = size(dom, 1)
     nwin = size(rng, 2)
@@ -260,21 +248,11 @@ end
 
 export JopSlidingCorrelation1D
 
-function JopSlidingCorrelation1D_df!(d::AbstractArray{T}, m::AbstractArray{T}; x, winlen, skip, maxlag, taper, dom, rng, kwargs...) where {T<:AbstractFloat}
-    d = sliding_correlation(m, x, winlen, skip, maxlag, taper, dom, rng)
-    d
-end
-
-function JopSlidingCorrelation1D_df′!(m::AbstractArray{T}, d::AbstractArray{T}; x, winlen, skip, maxlag, taper, dom, rng, kwargs...) where {T<:AbstractFloat}
-    m = sliding_convolution(d, x, winlen, skip, maxlag, taper, dom, rng)
-    m
-end
-
-function sliding_correlation(m::AbstractArray{T}, x::AbstractArray{T}, winlen::Int, skip::Int, maxlag::Int, taper::Int, dom, rng) where {T<:AbstractFloat}
+function JopSlidingCorrelation1D_df!(d::AbstractArray{T}, m::AbstractArray{T}; x::AbstractArray{T}, winlen::Int, skip::Int, maxlag::Int, taper::Int, dom, rng, kwargs...) where {T<:AbstractFloat}
     if size(dom) != size(m)
         error("Model vector size does not match domain size")
     end
-    d = zeros(T, size(rng)...)
+    d .= 0
 
     nt = size(dom, 1)
     npad = winlen + taper + maxlag
@@ -319,11 +297,11 @@ function sliding_correlation(m::AbstractArray{T}, x::AbstractArray{T}, winlen::I
     d
 end
 
-function sliding_convolution(d::AbstractArray{T}, x::AbstractArray{T}, winlen::Int, skip::Int, maxlag::Int, taper::Int, dom, rng) where {T<:AbstractFloat}
+function JopSlidingCorrelation1D_df′!(m::AbstractArray{T}, d::AbstractArray{T}; x::AbstractArray{T}, winlen::Int, skip::Int, maxlag::Int, taper::Int, dom, rng, kwargs...) where {T<:AbstractFloat}
     if size(rng) != size(d)
         error("Data vector size does not match range size")
     end
-    m = zeros(T, size(dom)...)
+    m .= 0
 
     fill!(m, zero(T))
 

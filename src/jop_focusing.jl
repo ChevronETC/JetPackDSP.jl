@@ -27,20 +27,7 @@ end
 
 export JopFocusing1D
 
-function JopFocusing1D_df!(d::AbstractArray{T}, m::AbstractArray{T}; weights, alpha, conserve_energy, kwargs...) where {T<:AbstractFloat}
-    d = focusing_forward(m, weights, alpha, conserve_energy)
-    d
-end
-
-function JopFocusing1D_df′!(m::AbstractArray{T}, d::AbstractArray{T}; weights, alpha, conserve_energy, kwargs...) where {T<:AbstractFloat}
-    m = focusing_adjoint(d, weights, alpha, conserve_energy)
-    m
-end
-
-function focusing_forward(m::AbstractArray{T},
-                  weights::AbstractArray{T},
-                  alpha::Real,
-                  conserve_energy::Bool) where {T<:AbstractFloat}
+function JopFocusing1D_df!(d::AbstractArray{T}, m::AbstractArray{T}; weights::AbstractArray{T}, alpha::Real, conserve_energy::Bool, kwargs...) where {T<:AbstractFloat}
     nt = size(m, 1)
     alphaT = T(abs(alpha))
     t = (1:nt) .- div(nt+1, 2)
@@ -84,10 +71,8 @@ function focusing_forward(m::AbstractArray{T},
     d
 end
 
-function focusing_adjoint(d::AbstractArray{T},
-                  weights::AbstractArray{T},
-                  alpha::Real,
-                  conserve_energy::Bool) where {T<:AbstractFloat}
+
+function JopFocusing1D_df′!(m::AbstractArray{T}, d::AbstractArray{T}; weights::AbstractArray{T}, alpha::Real, conserve_energy::Bool, kwargs...) where {T<:AbstractFloat}
     nt = size(d, 1)
     alphaT = T(abs(alpha))
     t = (1:nt) .- div(nt+1, 2)
