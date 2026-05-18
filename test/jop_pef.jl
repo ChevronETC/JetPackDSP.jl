@@ -36,7 +36,7 @@ using Jets, JetPack, JetPackDSP, Statistics, Test, Random, LinearAlgebra
     @test isapprox((lhs - rhs)/(lhs + rhs), 0.0, atol=1e-7)
 end
 
-@test_skip @testset "PEF - linearization - λ = $λ " for λ in (1, 1e-3)
+@test_skip @testset "PEF - linearization - λ = $λ " for λ in (1e-3, 1)
     Random.seed!(1234)
     nt = 51
     dom = JetSpace(Float64, (nt,))
@@ -50,7 +50,7 @@ end
 
     μs = [1.0, 0.1, 0.01, 0.001, 0.0001]
     e0 = [norm(A*(m0 .+ μ .* δm) -  Fm0)                for μ in μs]   # O(μ)
-    e1 = [norm(A*(m0 .+ μ .* δm) .- Fm0 .- μ .* Jδm)    for μ in μs]   # O(μ) also because of missing jacobian term
+    e1 = [norm(A*(m0 .+ μ .* δm) .- Fm0 .- μ .* Jδm)    for μ in μs]   # O(μ²)
 
     @show e0
     @show e1
@@ -63,7 +63,7 @@ end
     # Check that e1 decays quadratically
     rate = log2(e1[1] / e1[end]) / log2(μs[1] / μs[end])
     @show rate
-    @test abs(rate - 1) < 0.1
+    @test abs(rate - 2) < 0.1
 end
 
 @testset "PEF - gradient" begin
@@ -85,7 +85,7 @@ end
             0.5 * norm((A * x))^2
         end
 
-        μs = [1.0, 0.1, 0.01, 0.001, 0.0001]
+        μs = [1.0, 0.1, 0.01, 0.001, 0.0001, 0.00001]
         g_fd = zeros(nt, length(μs))
         mi = zeros(nt)
         phi0 = misfit(m)
@@ -101,8 +101,6 @@ end
         error = [norm(g .- g_fd[:,ie]) ./ (norm(g) + norm(g_fd[:,ie])) for ie in 1:length(μs)]
         push!(e, minimum(error))
     end
-    rate = log2(e[1] / e[end]) / log2(λs[1] / λs[end])
-    @show rate
     @show e
-    @test e[end] < 1e-4
+    @test all(e .< 1e-4)
 end

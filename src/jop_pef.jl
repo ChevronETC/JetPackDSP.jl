@@ -34,26 +34,9 @@ JopLnStreamingPEF1D(; v, kwargs...) = JopLn(JopStreamingPEF1D(;kwargs...), v)
 export JopNlStreamingPEF1D
 export JopLnStreamingPEF1D
 
-function JopStreamingPEF1D_f!(d::AbstractArray{T}, m::AbstractArray{T}; n, λ, kwargs...) where {T<:AbstractFloat}
-    m_copy = copy(m) # avoid mutating input in-place since the filter estimation is intertwined with the forward application
-    d = streaming_pef_forward(m, m_copy, n, λ)
-    d
-end
-
-function JopStreamingPEF1D_df!(d::AbstractArray{T}, m::AbstractArray{T}; n, λ, kwargs...) where {T<:AbstractFloat}
-    d = streaming_pef_forward(m, kwargs[:mₒ], n, λ)
-    d
-end
-
-function JopStreamingPEF1D_df′!(m::AbstractArray{T}, d::AbstractArray{T}; n, λ, kwargs...) where {T<:AbstractFloat}
-    m = streaming_pef_adjoint(d, kwargs[:mₒ], n, λ)
-    m
-end
-
-function streaming_pef_forward(m::AbstractArray{T},
-                  x::AbstractArray{T},
-                  n::Int,
-                  λ::T) where {T<:AbstractFloat}
+function JopStreamingPEF1D_f!(d::AbstractArray{T}, m::AbstractArray{T}; kwargs...) where {T<:AbstractFloat}
+    n = kwargs[:n]
+    λ = kwargs[:λ]              
     nt = size(m, 1)
     λ2 = λ^2
 
@@ -64,12 +47,10 @@ function streaming_pef_forward(m::AbstractArray{T},
     # Initialize filter coefficients to zero (leading coeff is always 1)
     f = zeros(T, n, Threads.maxthreadid())
 
-    # holders for padded arrays with filter length
+    # holder for padded array with filter length
     xpad = zeros(T, n + nt, Threads.maxthreadid())
-    mpad = zeros(T, n + nt, Threads.maxthreadid())
 
     # Output array
-    d = similar(m)
     d[1:1, ntuple(_->Colon(), trailing_dims)...] .= m[1:1, ntuple(_->Colon(), trailing_dims)...] # first sample is always copied
 
     # loop over trailing dims
@@ -77,8 +58,7 @@ function streaming_pef_forward(m::AbstractArray{T},
         idx = I.I
         tid = Threads.threadid()
         
-        xpad[n+1:end, tid] .= x[:, idx...]
-        mpad[n+1:end, tid] .= m[:, idx...]
+        xpad[n+1:end, tid] .= m[:, idx...]
 
         fill!(@view(f[:, tid]), zero(T))
         xTx = zero(T)
@@ -92,71 +72,163 @@ function streaming_pef_forward(m::AbstractArray{T},
             fv .-= (xpad[n+i, tid] + xTf) / (λ2 + xTx) .* xv
             
             # Apply PEF to m
-            d[i, idx...] = mpad[n+i, tid] + sum(@view(mpad[i:n+i-1, tid]) .* fv)
+            d[i, idx...] = xpad[n+i, tid] + sum(@view(xpad[i:n+i-1, tid]) .* fv)
         end
     end
     d
 end
 
-function streaming_pef_adjoint(d::AbstractArray{T},
-                  x::AbstractArray{T},
-                  n::Int,
-                  λ::T) where {T<:AbstractFloat}
-    nt = size(d, 1)
+function JopStreamingPEF1D_df!(δd::AbstractArray{T}, δm::AbstractArray{T}; kwargs...) where {T<:AbstractFloat}
+    mₒ = kwargs[:mₒ]
+    n  = kwargs[:n]
+    λ  = kwargs[:λ]
+    nt = size(mₒ, 1)
     λ2 = λ^2
 
-    trailing_shape = size(d)[2:end]
-    trailing_inds = CartesianIndices(trailing_shape)
+    trailing_shape = size(δm)[2:end]
+    trailing_inds  = CartesianIndices(trailing_shape)
+    trailing_dims  = length(trailing_shape)
 
-    # Initialize filter coefficients to zero (leading coeff is always 1)
-    f = zeros(T, n, nt, Threads.maxthreadid())
+    # filter at step i-1 (rolling), linearized filter perturbation (rolling)
+    f   = zeros(T, n, Threads.maxthreadid())
+    δf  = zeros(T, n, Threads.maxthreadid())
 
     # holders for padded arrays with filter length
-    xpad = zeros(T, n + nt, Threads.maxthreadid())
-    mpad = zeros(T, n + nt, Threads.maxthreadid())
+    xpad  = zeros(T, n + nt, Threads.maxthreadid())
+    δxpad = zeros(T, n + nt, Threads.maxthreadid())
 
-    # Output array
-    m = similar(d)
+    δd[1:1, ntuple(_->Colon(), trailing_dims)...] .= δm[1:1, ntuple(_->Colon(), trailing_dims)...] # first sample is always copied
 
     # loop over trailing dims
     @inbounds @threads for I in trailing_inds
         idx = I.I
         tid = Threads.threadid()
 
-        xpad[n+1:end, tid] .= x[:, idx...]
+        xpad[n+1:end, tid]  .= mₒ[:, idx...]
+        δxpad[n+1:end, tid] .= δm[:, idx...]
 
-        # ------------------------------------------------------------
-        # Reconstruct filter coefficients at each time index
-        # Mathematically, the filter can be inverted from the last filter in the forward operator,
-        # however, this is numerically unstable. Instead, we reconstruct the filter coefficients at each time index by re-running the forward loop.
-        # ------------------------------------------------------------
-        fill!(@view(f[:,:,tid]), zero(T))
+        fill!(@view(f[:, tid]),  zero(T))
+        fill!(@view(δf[:, tid]), zero(T))
         xTx = zero(T)
 
         @fastmath @simd for i = 2:nt
-            xv = @view(xpad[i:n+i-1, tid])
-            fp = @view f[:, i-1, tid]
-            fn = @view f[:, i,   tid]
+            xv  = @view xpad[i:n+i-1, tid]     # window of mₒ (= x in f!)
+            δmv = @view δxpad[i:n+i-1, tid]    # window of δm
+            fv  = @view f[:, tid]               # f_{i-1}
+            δfv = @view δf[:, tid]              # δf_{i-1}
+
             xTx += xpad[n+i-1, tid]^2 - xpad[i-1, tid]^2
-            xTf  = sum(xv .* fp)
-            fn  .= fp .- (xpad[n+i, tid] + xTf) / (λ2 + xTx) .* xv
+            ci   = λ2 + xTx
+            ei   = xpad[n+i, tid] + sum(xv .* fv)
+            αi   = ei / ci
+
+            # Linearize filter update: δf_i = δf_{i-1} - δα_i*xv - α_i*δmv
+            # (must use fv = f_{i-1} and δfv = δf_{i-1} before either is updated)
+            δei  = δxpad[n+i, tid] + sum(xv .* δfv) + sum(δmv .* fv)
+            δci  = 2 * sum(xv .* δmv)
+            δαi  = (δei - αi * δci) / ci
+            δfv .-= δαi .* xv .+ αi .* δmv    # δf_i  (updated before fv)
+            fv  .-= αi .* xv                   # f_i   (now fv = f_i)
+
+            # Apply linearized PEF to δm: δd[i] = δm_i + dot(δmv, f_i) + dot(xv, δf_i)
+            δd[i, idx...] = δxpad[n+i, tid] + sum(δmv .* fv) + sum(xv .* δfv)
+        end
+    end
+    δd
+end
+
+function JopStreamingPEF1D_df′!(δm::AbstractArray{T}, δd::AbstractArray{T}; kwargs...) where {T<:AbstractFloat}
+    mₒ = kwargs[:mₒ]
+    n  = kwargs[:n]
+    λ  = kwargs[:λ]
+    nt = size(mₒ, 1)
+    λ2 = λ^2
+
+    trailing_shape = size(δm)[2:end]
+    trailing_inds  = CartesianIndices(trailing_shape)
+    trailing_dims  = length(trailing_shape)
+
+    # filter history, RLS scalars (needed for exact adjoint of df!)
+    f    = zeros(T, n, nt, Threads.maxthreadid())
+    α    = zeros(T, nt,   Threads.maxthreadid())
+    c    = zeros(T, nt,   Threads.maxthreadid())
+
+    # holders for padded arrays with filter length
+    xpad = zeros(T, n + nt, Threads.maxthreadid())
+    mpad = zeros(T, n + nt, Threads.maxthreadid())
+
+    # adjoint of δf chain (propagated backward) and scratch for δmv adjoint
+    g    = zeros(T, n, Threads.maxthreadid())
+    dav  = zeros(T, n, Threads.maxthreadid())
+
+    δm[1:1, ntuple(_->Colon(), trailing_dims)...] .= δd[1:1, ntuple(_->Colon(), trailing_dims)...] # first sample is always copied
+
+    # loop over trailing dims
+    @inbounds @threads for I in trailing_inds
+        idx = I.I
+        tid = Threads.threadid()
+
+        xpad[n+1:end, tid] .= mₒ[:, idx...]
+
+        # Pass 1: reconstruct filter history + α_i, c_i from mₒ (same as f! with x=mₒ)
+        fill!(@view(f[:, :, tid]), zero(T))
+        xTx = zero(T)
+        @fastmath @simd for i = 2:nt
+            xv  = @view xpad[i:n+i-1, tid]
+            fp  = @view f[:, i-1, tid]
+            fn  = @view f[:, i,   tid]
+            xTx += xpad[n+i-1, tid]^2 - xpad[i-1, tid]^2
+            ci   = λ2 + xTx
+            ei   = xpad[n+i, tid] + sum(xv .* fp)
+            αi   = ei / ci
+            fn  .= fp .- αi .* xv
+            α[i, tid] = αi
+            c[i, tid] = ci
         end
 
-        # ------------------------------------------------------------
-        # Reverse-time adjoint sweep
-        # ------------------------------------------------------------
+        # Pass 2: reverse-time adjoint sweep
         fill!(@view(mpad[:, tid]), zero(T))
-        mpad[n+1, tid] = d[1, idx...]   # adjoint of: d[1] = m[1]
+        mpad[n+1, tid] = δd[1, idx...]  # adjoint of: δd[1] = δm[1]
+        fill!(@view(g[:, tid]), zero(T))
 
         for i = nt:-1:2
-            # Adjoint of: d[i] = m[i] + dot(m[i-n:i-1], f_i)
-            di = d[i, idx...]
-            mpad[n+i, tid]     += di
-            mpad[i:n+i-1, tid] .+= @view(f[:,i,tid]) .* di
+            xv  = @view xpad[i:n+i-1, tid]
+            fp  = @view f[:, i-1, tid]
+            fi  = @view f[:, i,   tid]
+            gv  = @view g[:, tid]
+            dv  = @view dav[:, tid]
+            αi  = α[i, tid]
+            ci  = c[i, tid]
+            di  = δd[i, idx...]
+
+            # Adjoint of application: δd[i] = δm_i + dot(δmv, fi) + dot(xv, δf_i)
+            mpad[n+i, tid] += di
+            dv             .= fi .* di       # adjoint from dot(δmv, fi)
+            gv            .+= xv .* di       # adjoint from dot(xv, δf_i) → accumulate into g
+
+            # Adjoint of δf update: δf_i = δf_{i-1} - δα_i*xv - α_i*δmv
+            dα_bar = -sum(xv .* gv)          # adjoint from -δα_i * xv term
+            dv    .-= αi .* gv               # adjoint from -α_i * δmv term
+
+            # Adjoint of δα_i = (δe_i - α_i*δc_i) / c_i
+            de_bar = dα_bar / ci
+            dc_bar = -αi * dα_bar / ci
+
+            # Adjoint of δe_i = δm_i + dot(xv, δf_{i-1}) + dot(δmv, fp)
+            mpad[n+i, tid] += de_bar
+            gv             .+= de_bar .* xv  # propagates g to step i-1
+            dv             .+= de_bar .* fp  # adjoint from dot(δmv, fp)
+
+            # Adjoint of δc_i = 2*dot(xv, δmv)
+            dv .+= 2 .* xv .* dc_bar
+
+            # Scatter all δmv contributions into mpad
+            mpad[i:n+i-1, tid] .+= dv
         end
-        m[:, idx...] .= mpad[n+1:end, tid]
+
+        δm[:, idx...] .= mpad[n+1:end, tid]
     end
-    m
+    δm
 end
 
 """
