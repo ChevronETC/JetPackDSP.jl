@@ -36,36 +36,24 @@ function JopFocusing1D_df!(d::AbstractArray{T}, m::AbstractArray{T}; weights::Ab
     trailing_shape = size(m)[2:end]
     trailing_inds = CartesianIndices(trailing_shape)
 
-    # Output array
-    d = similar(m)
+    # Precompute trace-independent quantities once
+    abs_t_over_T = abs.(t) ./ T_half          # length-nt Vector
 
-    # Reshape weights for broadcasting
-    abs_t_over_T = reshape(abs.(t) ./ T_half, nt, ntuple(_ -> 1, ndims(weights)-1)...)
-    t_vec        = reshape(t,                nt, ntuple(_ -> 1, ndims(weights)-1)...)
+    @inbounds @threads for I in trailing_inds
+        idx = I.I
+        wgt = weights[1, idx...]
 
-    @inbounds begin
-        @threads for I in trailing_inds
-            idx = I.I
-            wgt = weights[1, idx...]
-
-            # scaled time axis for this trace
-            t_new = t_vec[:, ones(Int, ndims(weights)-1)...] .* (1 .+ alphaT .* abs_t_over_T[:, ones(Int, ndims(weights)-1)...] .* wgt)
-            pos = clamp.(t_new .+ T_half .+ 1, 1, nt)
-
-            idx_low  = clamp.(floor.(pos), 1, nt)
-            idx_high = clamp.(idx_low .+ 1, 1, nt)
-            w = pos .- idx_low
-
-            idx_low_i  = Int.(idx_low)
-            idx_high_i = Int.(idx_high)
-
-            # Jacobian scaling for this trace
-            jac = 1 .+ 2 .* alphaT .* abs_t_over_T[:, ones(Int, ndims(weights)-1)...] .* wgt
-            s   = conserve_energy ? sqrt.(jac) : ones(T, nt)
-
-            xlow  = m[idx_low_i, idx...]
-            xhigh = m[idx_high_i, idx...]
-            d[:, idx...] .= s .* ((1 .- w) .* xlow .+ w .* xhigh)
+        # scaled time axis for this trace
+        scale = alphaT * wgt
+        s_energy = conserve_energy ? sqrt(1 + 2 * scale) : one(T)  # only needed if conserve_energy varies
+        for it in 1:nt
+            t_new = t[it] * (1 + scale * abs_t_over_T[it])
+            pos   = clamp(t_new + T_half + 1, T(1), T(nt))
+            il    = clamp(floor(Int, pos), 1, nt)
+            ih    = clamp(il + 1, 1, nt)
+            frac  = pos - il
+            jac_t = conserve_energy ? sqrt(1 + 2 * scale * abs_t_over_T[it]) : one(T)
+            d[it, idx...] = jac_t * ((1 - frac) * m[il, idx...] + frac * m[ih, idx...])
         end
     end
     d
@@ -81,41 +69,26 @@ function JopFocusing1D_df′!(m::AbstractArray{T}, d::AbstractArray{T}; weights:
     trailing_shape = size(d)[2:end]
     trailing_inds = CartesianIndices(trailing_shape)
 
-    # Output array
-    m = similar(d)
     fill!(m, zero(T))
 
-    # Reshape weights for broadcasting
-    abs_t_over_T = reshape(abs.(t) ./ T_half, nt, ntuple(_ -> 1, ndims(weights)-1)...)
-    t_vec        = reshape(t,                nt, ntuple(_ -> 1, ndims(weights)-1)...)
+    # Precompute trace-independent quantities once
+    abs_t_over_T = abs.(t) ./ T_half          # length-nt Vector
 
-    @inbounds begin
-        @threads for I in trailing_inds
-            idx = I.I
-            wgt = weights[1, idx...]
+    @inbounds @threads for I in trailing_inds
+        idx = I.I
+        wgt = weights[1, idx...]
 
-            # scaled time axis for this trace
-            t_new = t_vec[:, ones(Int, ndims(weights)-1)...] .* (1 .+ alphaT .* abs_t_over_T[:, ones(Int, ndims(weights)-1)...] .* wgt)
-            pos = clamp.(t_new .+ T_half .+ 1, 1, nt)
-
-            idx_low  = clamp.(floor.(pos), 1, nt)
-            idx_high = clamp.(idx_low .+ 1, 1, nt)
-            w = pos .- idx_low
-
-            idx_low_i  = Int.(idx_low)
-            idx_high_i = Int.(idx_high)
-
-            # Jacobian scaling for this trace
-            jac = 1 .+ 2 .* alphaT .* abs_t_over_T[:, ones(Int, ndims(weights)-1)...] .* wgt
-            s   = conserve_energy ? sqrt.(jac) : ones(T, nt)
-
-            xlow  = d[idx_low_i, idx...]
-            xhigh = d[idx_high_i, idx...]
-
-            @inbounds for it in 1:nt
-                m[idx_low_i[it], idx...] += s[it] * (1 - w[it]) * d[it, idx...]
-                m[idx_high_i[it], idx...] += s[it] * w[it] * d[it, idx...]
-            end
+        scale = alphaT * wgt
+        for it in 1:nt
+            t_new = t[it] * (1 + scale * abs_t_over_T[it])
+            pos   = clamp(t_new + T_half + 1, T(1), T(nt))
+            il    = clamp(floor(Int, pos), 1, nt)
+            ih    = clamp(il + 1, 1, nt)
+            frac  = pos - il
+            jac_t = conserve_energy ? sqrt(1 + 2 * scale * abs_t_over_T[it]) : one(T)
+            val   = jac_t * d[it, idx...]
+            m[il, idx...] += (1 - frac) * val
+            m[ih, idx...] +=      frac  * val
         end
     end
     m

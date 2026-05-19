@@ -5,6 +5,9 @@ Random.seed!(101)
 for filename in (
         "jop_convolve.jl",
         "jop_envelope.jl",
-        "jop_filter.jl")
+        "jop_filter.jl",
+        "jop_focusing.jl",
+        "jop_correlation.jl",
+        "jop_pef.jl")
     include(filename)
 end

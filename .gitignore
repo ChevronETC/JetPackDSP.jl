@@ -2,3 +2,4 @@ docs/build
 tune.json
 results.md
 */Manifest.toml
+*/**.png

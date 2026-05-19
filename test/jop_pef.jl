@@ -13,11 +13,7 @@ using InteractiveUtils
 
     J = jacobian!(A, m0)
 
-    @show extrema(J * m)
-    @show extrema(J' * d)
-
     lhs, rhs = dot_product_test(J, m, d)
-    @show lhs, rhs
     @test isapprox((lhs - rhs)/(lhs + rhs), 0.0, atol=1e-7)
 
     dom = JetSpace(Float64, (nt))
@@ -29,11 +25,7 @@ using InteractiveUtils
 
     J = jacobian!(A, m0)
 
-    @show extrema(J * m)
-    @show extrema(J' * d)
-
     lhs, rhs = dot_product_test(J, m, d)
-    @show lhs, rhs
     @test isapprox((lhs - rhs)/(lhs + rhs), 0.0, atol=1e-7)
 end
 
@@ -53,17 +45,12 @@ end
     e0 = [norm(A*(m0 .+ μ .* δm) -  Fm0)                for μ in μs]   # O(μ)
     e1 = [norm(A*(m0 .+ μ .* δm) .- Fm0 .- μ .* Jδm)    for μ in μs]   # O(μ²)
 
-    @show e0
-    @show e1
-
     # Check that e0 decays linearly
     rate = log2(e0[1] / e0[end]) / log2(μs[1] / μs[end])
-    @show rate
     @test abs(rate - 1) < 0.1
 
     # Check that e1 decays quadratically
     rate = log2(e1[1] / e1[end]) / log2(μs[1] / μs[end])
-    @show rate
     @test abs(rate - 2) < 0.1
 end
 
@@ -102,7 +89,6 @@ end
         error = [norm(g .- g_fd[:,ie]) ./ (norm(g) + norm(g_fd[:,ie])) for ie in 1:length(μs)]
         push!(e, minimum(error))
     end
-    @show e
     @test all(e .< 1e-4)
 end
 
@@ -117,8 +103,6 @@ end
     m = rand(domain(A))
     d1 = A * m
     d2 = B * m
-    @show norm(d1)
-    @show norm(d2)
     error = norm(d1 - d2) / (norm(d1) + norm(d2))
     @test error < 1e-7
 end
@@ -135,8 +119,6 @@ end
     m = rand(domain(A))
     d1 = A * m
     d2 = B * permutedims(m, (2, 1, 3))
-    @show norm(d1)
-    @show norm(d2)
     error = norm(d1 - permutedims(d2, (2, 1, 3))) / (norm(d1) + norm(d2))
     @test error < 1e-7
 end
@@ -153,11 +135,7 @@ end
 
     J = jacobian!(A, m0)
 
-    @show extrema(J * m)
-    @show extrema(J' * d)
-
     lhs, rhs = dot_product_test(J, m, d)
-    @show lhs, rhs
     @test isapprox((lhs - rhs)/(lhs + rhs), 0.0, atol=1e-7)
 
     dom = JetSpace(Float64, (nt,nx))
@@ -169,11 +147,7 @@ end
 
     J = jacobian!(A, m0)
 
-    @show extrema(J * m)
-    @show extrema(J' * d)
-
     lhs, rhs = dot_product_test(J, m, d)
-    @show lhs, rhs
     @test isapprox((lhs - rhs)/(lhs + rhs), 0.0, atol=1e-7)
 end
 
@@ -193,17 +167,12 @@ end
     e0 = [norm(A*(m0 .+ μ .* δm) -  Fm0)                for μ in μs]   # O(μ)
     e1 = [norm(A*(m0 .+ μ .* δm) .- Fm0 .- μ .* Jδm)    for μ in μs]   # O(μ²)
 
-    @show e0
-    @show e1
-
     # Check that e0 decays linearly
     rate = log2(e0[1] / e0[end]) / log2(μs[1] / μs[end])
-    @show rate
     @test abs(rate - 1) < 0.1
 
     # Check that e1 decays quadratically
     rate = log2(e1[1] / e1[end]) / log2(μs[1] / μs[end])
-    @show rate
     @test abs(rate - 2) < 0.1
 end
 
@@ -244,6 +213,5 @@ end
         error = [norm(g .- g_fd[:, :, ie]) ./ (norm(g) + norm(g_fd[:, :, ie])) for ie in 1:length(μs)]
         push!(e, minimum(error))
     end
-    @show e
     @test all(e .< 1e-4)
 end
