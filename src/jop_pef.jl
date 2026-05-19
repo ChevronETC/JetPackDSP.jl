@@ -1,5 +1,5 @@
 """
-    A = JopStreamingPEF1D(; dom, n=7, λ=1e-1)
+    A = JopStreamingPEF1D(; dom, n=7, λ=1e-1, save_pef = false)
 
 Apply a 1D streaming prediction error filter (PEF) along the first dimension. \\
 The filter is estimated and applied on the fly.
@@ -9,6 +9,7 @@ Arguments:
 - 'dom :: JetSpace{T}': domain (and range) of the operator
 - 'n :: Int': number of active samples in the PEF (default: 7). The leading sample of the PEF is always 1 (implicitly).
 - 'λ :: Real': regularization parameter for the PEF estimation (default: 1e-1)
+- 'save_pef :: Bool': whether to save the PEF coefficients at the end of each stream in the non-linear forward mode (default: false)
 
 Forward mode returns:
 - 'd :: AbstractArray{T}` containing filtered input with same shape as `dom`
@@ -20,12 +21,20 @@ Note: the operator is non-linear, so the gradient of `1/2||A(m)||^2` given in Jo
 It is only exact when `λ` is zero (no regularization). In the more general case, it will be missing a correction term that accounts for the variation of the filter coefficients with respect to the input `m`.
 The linearization and adjoint implementation below account for missing term correctly.
 """
-function JopStreamingPEF1D(; dom::JetSpace{T}, n::Int=7, λ::Real=1e-1) where {T<:AbstractFloat}
+function JopStreamingPEF1D(; dom::JetSpace{T}, n::Int=7, λ::Real=1e-1, save_pef::Bool=false) where {T<:AbstractFloat}
     @assert n > 0 "n must be strictly greater than 0"
     @assert λ > 0 "λ must be strictly greater than 0"
     rng = dom
 
-    Jet(; dom, rng, f! = JopStreamingPEF1D_f!, df! = JopStreamingPEF1D_df!, df′! = JopStreamingPEF1D_df′!, s = (; n=n, λ=T(λ)))
+    pef = nothing
+    if save_pef
+        trailing_shape = size(dom)[2:end]
+        trailing_dims = length(trailing_shape)
+        pef = zeros(T, n + 1, trailing_shape...)
+        pef[1:1, ntuple(_->Colon(), trailing_dims)...] .= 1
+    end
+
+    Jet(; dom, rng, f! = JopStreamingPEF1D_f!, df! = JopStreamingPEF1D_df!, df′! = JopStreamingPEF1D_df′!, s = (; n=n, λ=T(λ), pef = pef))
 end
 
 JopNlStreamingPEF1D(;kwargs...) = JopNl(JopStreamingPEF1D(;kwargs...))
@@ -73,6 +82,9 @@ function JopStreamingPEF1D_f!(d::AbstractArray{T}, m::AbstractArray{T}; kwargs..
             
             # Apply PEF to m
             d[i, idx...] = xpad[n+i, tid] + @inbounds sum(xv[k]*fv[k] for k in eachindex(xv))
+        end
+        if kwargs[:pef] !== nothing
+            @view(kwargs[:pef][end:-1:2, idx...]) .= @view(f[:, tid])
         end
     end
     d
@@ -232,7 +244,7 @@ function JopStreamingPEF1D_df′!(δm::AbstractArray{T}, δd::AbstractArray{T}; 
 end
 
 """
-    A = JopStreamingPEF2D(; dom, n1=7, n2=3, λ1=1e-1, λ2=1e-1)
+    A = JopStreamingPEF2D(; dom, n1=7, n2=3, λ1=1e-1, λ2=1e-1, save_pef = false)
 
 Apply a 2D streaming prediction error filter (PEF) along the first and second dimensions. \\
 The filter is estimated and applied on the fly.
@@ -241,6 +253,7 @@ Arguments:
 - 'dom :: JetSpace{T}': domain (and range) of the operator
 - 'n1,n2 :: Int': number of active samples in the first,second dimensions of the PEF (default: 7,3). The leading sample of the PEF is always 1 (implicitly) and is centered at the first column.
 - 'λ1,λ2 :: Real': regularization parameters for the first and second dimensions of the PEF estimation (default: 1e-1,1e-1)
+- 'save_pef :: Bool': whether to save the PEF coefficients at the end of each stream in the non-linear forward mode (default: false)
 
 Forward mode returns:
 - 'd :: AbstractArray{T}` containing filtered input with same shape as `dom`
@@ -258,14 +271,22 @@ Effective filter shape for n1 = 4 and n2 = 3:
 |f23|f22| 1 |
 |f13|f12| 0 |
 """
-function JopStreamingPEF2D(; dom::JetSpace{T}, n1::Int=7, n2::Int=3, λ1::Real=1e-1, λ2::Real=1e-1) where {T<:AbstractFloat}
+function JopStreamingPEF2D(; dom::JetSpace{T}, n1::Int=7, n2::Int=3, λ1::Real=1e-1, λ2::Real=1e-1, save_pef::Bool=false) where {T<:AbstractFloat}
     @assert n1 > 0 "n1 must be strictly greater than 0"
     @assert n2 > 0 "n2 must be strictly greater than 0"
     @assert λ1^2 + λ2^2 > 0 "λ1^2 + λ2^2 must be strictly greater than 0"
     @assert ndims(dom) > 1 "number of dimensions of `dom` must be greater than 1"
     rng = dom
 
-    Jet(; dom, rng, f! = JopStreamingPEF2D_f!, df! = JopStreamingPEF2D_df!, df′! = JopStreamingPEF2D_df′!, s = (; n1=n1, n2=n2, λ1=T(λ1), λ2=T(λ2)))
+    pef = nothing
+    if save_pef
+        trailing_shape = size(dom)[3:end]
+        trailing_dims = length(trailing_shape)
+        pef = zeros(T, n1, n2, trailing_shape...)
+        pef[div(n1,2)+1, 1:1, ntuple(_->Colon(), trailing_dims)...] .= 1
+    end
+
+    Jet(; dom, rng, f! = JopStreamingPEF2D_f!, df! = JopStreamingPEF2D_df!, df′! = JopStreamingPEF2D_df′!, s = (; n1=n1, n2=n2, λ1=T(λ1), λ2=T(λ2), pef=pef))
 end
 
 JopNlStreamingPEF2D(;kwargs...) = JopNl(JopStreamingPEF2D(;kwargs...))
@@ -296,7 +317,7 @@ function JopStreamingPEF2D_f!(d::AbstractArray{T}, m::AbstractArray{T}; kwargs..
     nxpad = n2 + nx
     xpad = zeros(T, ntpad, nxpad, Threads.maxthreadid())
 
-    hn = div(n1, 2)  # half-width (inactive tap offset)
+    hn = div(n1, 2)  # half-width (active tap offset)
 
     # loop over trailing dims
     @inbounds @threads for I in trailing_inds
@@ -327,6 +348,10 @@ function JopStreamingPEF2D_f!(d::AbstractArray{T}, m::AbstractArray{T}; kwargs..
                 # Apply PEF to m
                 d[i1,i2,idx...] = xpad[n1+i1,n2+i2,tid] + dot(xv, f1v)
             end
+        end
+        if kwargs[:pef] !== nothing
+            @view(kwargs[:pef][end:-1:1,end:-1:1,idx...]) .= @view(f1[:,:,tid])
+            @view(kwargs[:pef][hn+1,1:1,idx...]) .= 1
         end
     end
     d
