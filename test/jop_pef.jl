@@ -1,5 +1,4 @@
 using Jets, JetPack, JetPackDSP, Statistics, Test, Random, LinearAlgebra
-using InteractiveUtils
 
 @testset "PEF - dot product" begin
     Random.seed!(1234)
