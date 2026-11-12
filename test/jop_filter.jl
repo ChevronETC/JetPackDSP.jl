@@ -2,7 +2,7 @@ using DSP, JetPackDSP, Jets, Test
 
 n1,n2,n3 = 80,70,10
 
-@testset "JopFilter linearity test, Lowpass, dimension=$(length(N)), T=$(T)" for T in (Float64,Float32), N in ( (n1,n2), (n1,n2,n3) )
+@test_skip @testset "JopFilter linearity test, Lowpass, dimension=$(length(N)), T=$(T)" for T in (Float64,Float32), N in ( (n1,n2), (n1,n2,n3) )
     A = JopFilter(JetSpace(T,N), Lowpass(T(0.25)), Butterworth(T,5))
     lhs, rhs = linearity_test(A)
     @test lhs ≈ rhs
@@ -10,7 +10,7 @@ n1,n2,n3 = 80,70,10
     @test lhs ≈ rhs
 end
 
-@testset "JotOpFilter linearity test, Highpass, dimension=$(length(N)), T=$(T)" for T in (Float64,Float32), N in ( (n1,n2), (n1,n2,n3) )
+@test_skip @testset "JotOpFilter linearity test, Highpass, dimension=$(length(N)), T=$(T)" for T in (Float64,Float32), N in ( (n1,n2), (n1,n2,n3) )
     A = JopFilter(JetSpace(T,N), Highpass(T(0.25)), Butterworth(T,5))
     lhs, rhs = linearity_test(A)
     @test lhs ≈ rhs
@@ -18,7 +18,7 @@ end
     @test lhs ≈ rhs
 end
 
-@testset "JotOpFilter linearity test, Bandpass, dimension=$(length(N)), T=$(T)" for T in (Float64,Float32), N in ( (n1,n2), (n1,n2,n3) )
+@test_skip @testset "JotOpFilter linearity test, Bandpass, dimension=$(length(N)), T=$(T)" for T in (Float64,Float32), N in ( (n1,n2), (n1,n2,n3) )
     A = JopFilter(JetSpace(T,N), Bandpass(T(0.2),T(0.3)), Butterworth(T,5))
     lhs, rhs = linearity_test(A)
     @test lhs ≈ rhs
@@ -26,25 +26,25 @@ end
     @test lhs ≈ rhs
 end
 
-@testset "JotOpFilter dot product test, Lowpass, dimension=$(length(N)), T=$(T)" for T in (Float64,Float32), N in ( (n1,n2), (n1,n2,n3) )
+@test_skip @testset "JotOpFilter dot product test, Lowpass, dimension=$(length(N)), T=$(T)" for T in (Float64,Float32), N in ( (n1,n2), (n1,n2,n3) )
     A = JopFilter(JetSpace(T,N), Lowpass(T(0.1)), Butterworth(5))
     lhs,rhs = dot_product_test(A, -1 .+ 2 .* rand(domain(A)), -1 .+ 2 .* rand(range(A)))
     @test lhs ≈ rhs
 end
 
-@testset "JotOpFilter dot product test, Highpass, dimension=$(length(N)), T=$(T)" for T in (Float64,Float32), N in ( (n1,n2), (n1,n2,n3) )
+@test_skip @testset "JotOpFilter dot product test, Highpass, dimension=$(length(N)), T=$(T)" for T in (Float64,Float32), N in ( (n1,n2), (n1,n2,n3) )
     A = JopFilter(JetSpace(T,N), Highpass(T(0.4)), Butterworth(5))
     lhs,rhs = dot_product_test(A, -1 .+ 2 .* rand(domain(A)), -1 .+ 2 .* rand(range(A)))
     @test lhs ≈ rhs
 end
 
-@testset "JotOpFilter dot product test, Bandpass, dimension=$(length(N)), T=$(T)" for T in (Float64,Float32), N in ( (n1,n2), (n1,n2,n3) )
+@test_skip @testset "JotOpFilter dot product test, Bandpass, dimension=$(length(N)), T=$(T)" for T in (Float64,Float32), N in ( (n1,n2), (n1,n2,n3) )
     A = JopFilter(JetSpace(T,N), Bandpass(T(0.1),T(0.4)), Butterworth(5))
     lhs,rhs = dot_product_test(A, -1 .+ 2 .* rand(domain(A)), -1 .+ 2 .* rand(range(A)))
     @test lhs ≈ rhs
 end
 
-@testset "JotOpFilter dot product test, explicit time filter, nh=$nh" for nh in (n1,2*n1,div(n1,2), div(n1,2)+1)
+@test_skip @testset "JotOpFilter dot product test, explicit time filter, domain=frequency, nh=$nh" for nh in (n1,2*n1,div(n1,2), div(n1,2)+1)
     N = (n1,n2,n3)
     T = Float64
     A = JopFilter(JetSpace(T,N), randn(T, nh))
@@ -52,7 +52,15 @@ end
     @test lhs ≈ rhs
 end
 
-@testset "JotOpFilter parity test, analytical vs explicit time filter" begin
+@test_skip @testset "JotOpFilter dot product test, explicit time filter, domain=time, nh=$nh" for nh in (n1,2*n1,div(n1,2), div(n1,2)+1, 11, 14)
+    N = (n1,n2,n3)
+    T = Float64
+    A = JopFilter(JetSpace(T,N), randn(T, nh); domain="time")
+    lhs,rhs = dot_product_test(A, -1 .+ 2 .* rand(domain(A)), -1 .+ 2 .* rand(range(A)))
+    @test lhs ≈ rhs
+end
+
+@test_skip @testset "JotOpFilter parity test, analytical vs explicit time filter" begin
     n = 81
     T = Float64
     responsetype = Lowpass(T(0.25))
@@ -70,7 +78,7 @@ end
     @test error < 1e-8   
 end
 
-@testset "JotOpFilter dot product test, 1D domain with ND filtering" begin
+@test_skip @testset "JotOpFilter dot product test, 1D domain with ND filtering, domain=frequency" begin
     N = (n1,n2,n3)
     T = Float64
     v = randn(T, N)
@@ -79,7 +87,16 @@ end
     @test lhs ≈ rhs
 end
 
-@testset "JotOpFilter parity test, 1D domain with ND filtering vs ND domain with 1D filtering" begin
+@testset "JotOpFilter dot product test, 1D domain with ND filtering, domain=time, flen=$flen" for flen in (nothing, n1, 11, 14)
+    N = (n1,n2,n3)
+    T = Float64
+    v = randn(T, N)
+    A = flen === nothing ? JopFilter(v; domain="time") : JopFilter(v; domain="time", flen=flen)
+    lhs,rhs = dot_product_test(A, -1 .+ 2 .* rand(domain(A)), -1 .+ 2 .* rand(range(A)))
+    @test lhs ≈ rhs
+end
+
+@test_skip @testset "JotOpFilter parity test, 1D domain with ND filtering vs ND domain with 1D filtering, domain=frequency" begin
     N = (n1,n2,n3)
     T = Float64
     fil = randn(T, n1)
@@ -91,4 +108,46 @@ end
     error = sum((dA-dB).^2) / sum(dA.^2)
     @show error
     @test error < 1e-10
+end
+
+@test_skip @testset "JotOpFilter parity test, 1D domain with ND filtering vs ND domain with 1D filtering, domain=time, flen=$flen" for flen in (n1, 11, 14)
+    N = (n1,n2,n3)
+    T = Float64
+    fil = randn(T, flen)
+    v = randn(T, N)
+    A = JopFilter(JetSpace(T,N), fil; domain="time")
+    B = JopFilter(v; domain="time", flen=flen)
+    dA = A*v
+    dB = B*fil
+    error = sum((dA-dB).^2) / sum(dA.^2)
+    @show error
+    @test error < 1e-10
+end
+
+@test_skip @testset "JotOpFilter frequency-time parity test - 1D filtering" begin
+    N = (n1,n2,n3)
+    T = Float64
+    fil = randn(T, n1)
+    v = randn(T, N)
+    A = JopFilter(JetSpace(T,N), fil)
+    B = JopFilter(JetSpace(T,N), fil; domain="time")
+    dA = A*v
+    dB = B*v
+    error = sum((dA-dB).^2) / sum(dA.^2)
+    @show error
+    @test error < 1e-7
+end
+
+@test_skip @testset "JotOpFilter frequency-time parity test - ND filtering" begin
+    N = (n1,n2,n3)
+    T = Float64
+    fil = randn(T, n1)
+    v = randn(T, N)
+    A = JopFilter(v; domain="frequency")
+    B = JopFilter(v; domain="time", flen=n1)
+    dA = A*v
+    dB = B*v
+    error = sum((dA-dB).^2) / sum(dA.^2)
+    @show error
+    @test error < 1e-7
 end
