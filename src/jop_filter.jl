@@ -27,7 +27,7 @@ d = A*rand(domain(A))
 
     A = JopFilter(spc, h; domain = "frequency")
 
-where `h` is the filter. When domain = "frequency", if the filter length does not match that of the domain/range fast dimension, it will be padded or cut equally on both sides up to a sample to maintain its original parity.
+where `h` is the filter. When domain = "frequency", if the filter length does not match that of the domain/range fast dimension, it will be padded or cut equally on both sides.
 
 # Example
 ```
@@ -66,33 +66,33 @@ function JopFilter(spc::JetSpace{T}, f::AbstractVector{T}; domain::String="frequ
     nf = length(f)
 
     if domain == "frequency"
-        (n == 1) && iseven(nf) &&  error("Filter length cannot be even when the domain fast dimension is 1.")
         
         # trim the filter if it is too long but keep its original parity
         if nf > n
             istart = div(nf-n,2)+1
             iend = istart + n - 1
-            iseven(n) && isodd(nf) && (iend += 1)
-            isodd(n) && iseven(nf) && (istart += 1)
             f = f[istart:iend]
         # pad the filter if it is too short but keep its original parity
         elseif nf < n
             istart = div(n-nf,2)
             iend = n - nf - istart
-            iseven(n) && isodd(nf) && (istart += 1)
-            isodd(n) && iseven(nf) && (iend -= 1)
             f = vcat(zeros(T, istart), f, zeros(T, iend))
-        else
-            nothing
         end
 
+        # deduce the center of the filter after padding or trimming to determine the proper phase shift
+        iseven(n) && iseven(nf) && (center = n/2-1/2)
+        isodd(n) && isodd(nf) && (center = n/2-1/2)
+        iseven(n) && isodd(nf) && (center = n/2-1)
+        isodd(n) && iseven(nf) && (center = n/2-1)
+
         f_fft = rfft(f)
-        nf = length(f_fft)
-        dw = T(2 * π / n)
-        phase = exp.(im .* LinRange(0,nf-1,nf) .* (dw * div(n,2) ) )
+        nfreq = length(f_fft)
+        dw = T(2 * π / n * center)
+        phase = exp.(im .* LinRange(0,nfreq-1,nfreq) .* dw )
         f_fft_phase = f_fft .* phase
         JopLn(dom = spc, rng = spc, df! = JopFilterReal_df!, df′! = JopFilterReal_df′!, s = (; filter=f_fft_phase,))
     elseif domain == "time"
+        iseven(nf) && @warn "The filter length is even, which will cause a half-sample shift in the time domain."
         JopLn(dom = spc, rng = spc, df! = JopFilterRealTD_df!, df′! = JopFilterRealTD_df′!, s = (; filter=f,))
     else
         error("Unknown domain: $domain. Possible options are \"frequency\" and \"time\".")
@@ -108,13 +108,16 @@ function JopFilter(v::AbstractArray{T}; domain::String="frequency", flen = size(
     if domain == "frequency"
         dom = JetSpace(T, n)
         v_fft = rfft(v, 1)
-        nf = size(v_fft, 1)
-        dw = T(2 * π / n)
-        phase = exp.(im .* LinRange(0,nf-1,nf) .* (dw * div(n,2) ) )
+        nfreq = size(v_fft, 1)
+        iseven(n) && (center = n/2-1/2)
+        isodd(n) && (center = n/2-1/2)
+        dw = T(2 * π / n * center)
+        phase = exp.(im .* LinRange(0,nfreq-1,nfreq) .* dw )
     
         JopLn(; dom = dom, rng = rng, df! = JopFilterNd1d_df!, df′! = JopFilterNd1d_df′!, 
             s = (; v_fft=v_fft, phase=phase))
     elseif domain == "time"
+        iseven(flen) && @warn "The filter length is even, which will cause a half-sample shift in the time domain."
         dom = JetSpace(T, flen)
         JopLn(dom = dom, rng = rng, df! = JopFilterNd1dTD_df!, df′! = JopFilterNd1dTD_df′!, s = (; v=v,))
     else
@@ -189,13 +192,16 @@ function JopFilterRealTD_df!(d::AbstractArray{T}, m::AbstractArray{T}; filter, k
     _d = reshape(d, n, :)
     _m = reshape(m, n, :)
     L = length(filter)
+    ic = div(L+1, 2)   # 1-based center tap of the filter (exact for odd L)
 
     @inbounds @threads for k = 1:size(_d, 2)
         @inbounds for i = 1:n
             s = zero(T)
-            jmax = min(L, i)
-            for j = 1:jmax
-                s += _m[i-j+1, k] * filter[j]
+            for j = 1:L
+                idx = i + ic - j
+                if 1 <= idx <= n
+                    s += _m[idx, k] * filter[j]
+                end
             end
             _d[i, k] = s
         end
@@ -208,15 +214,18 @@ function JopFilterRealTD_df′!(m::AbstractArray{T}, d::AbstractArray{T}; filter
     _d = reshape(d, n, :)
     _m = reshape(m, n, :)
     L = length(filter)
+    ic = div(L+1, 2)   # 1-based center tap of the filter (exact for odd L)
 
     @inbounds @threads for k = 1:size(_d, 2)
-        @inbounds for i = 1:n
+        @inbounds for p = 1:n
             s = zero(T)
-            jmax = min(L, n-i+1)
-            for j = 1:jmax
-                s += _d[i+j-1, k] * filter[j]
+            for j = 1:L
+                i = p - ic + j
+                if 1 <= i <= n
+                    s += _d[i, k] * filter[j]
+                end
             end
-            _m[i, k] = s
+            _m[p, k] = s
         end
     end
     m
@@ -257,14 +266,18 @@ end
 function JopFilterNd1dTD_df!(d::AbstractArray{T}, m::AbstractVector{T}; v, kwargs...) where {T<:Real}
     n = size(v, 1)
     _d = reshape(d, n, :)
+    v = reshape(v, n, :)
     L = length(m)
+    ic = div(L+1, 2)   # 1-based center tap of the filter (exact for odd L)
 
     @inbounds @threads for k = 1:size(_d, 2)
         @inbounds for i = 1:n
             s = zero(T)
-            jmax = min(L, i)
-            for j = 1:jmax
-                s += v[i-j+1, k] * m[j]
+            for j = 1:L
+                idx = i + ic - j
+                if 1 <= idx <= n
+                    s += v[idx, k] * m[j]
+                end
             end
             _d[i, k] = s
         end
@@ -277,26 +290,23 @@ function JopFilterNd1dTD_df′!(m::AbstractVector{T}, d::AbstractArray{T}; v, kw
     _d = reshape(d, n, :)
     ntr = size(_d, 2)
     L = length(m)
+    ic = div(L+1, 2)   # 1-based center tap of the filter (exact for odd L)
     nt = Threads.nthreads()
     m_local = zeros(T, L, nt+1)
 
     @inbounds @threads for k = 1:ntr
         tid = Threads.threadid()
-        for t = 1:n
-            vt = v[t, k]
-            jmax = min(L, n-t+1)
-            for j = 1:jmax
-                m_local[j, tid] += vt * _d[t+j-1, k]
+        for i = 1:n
+            di = _d[i, k]
+            for j = 1:L
+                idx = i + ic - j
+                if 1 <= idx <= n
+                    m_local[j, tid] += v[idx, k] * di
+                end
             end
         end
     end
-
-    @inbounds for j = 1:L
-        s = zero(T)
-        for tid = 1:nt
-            s += m_local[j, tid]
-        end
-        m[j] = s
-    end
+    
+    m = dropdims(sum(m_local, dims=2), dims=2)
     m
 end
