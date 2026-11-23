@@ -41,7 +41,7 @@ d = A*rand(domain(A))
 
     A = JopFilter(v; domain = "frequency", flen = size(v,1))
 
-where `v` is the multidimensional data to which the filter (model) is to be applied. Note that in this case, the domain is 1D and will match the fast dimension of `v` when mode = "frequency", or will be of size `flen` when mode = "time". The range will match the size of `v`.
+where `v` is the multidimensional data to which the filter (model) is to be applied. Note that in this case, the domain is 1D and will be of size `flen`. The range will match the size of `v`.
 
 # Example
 ```
@@ -101,24 +101,33 @@ end
 
 function JopFilter(v::AbstractArray{T}; domain::String="frequency", flen = size(v,1)) where {T<:Real}
     n = size(v, 1)
+    flen = min(flen, n)
+    dom = JetSpace(T, flen)
     rng = JetSpace(T, size(v)...)
-
+    
     v = reshape(v, n, :)
 
     if domain == "frequency"
-        dom = JetSpace(T, n)
+        # padding
+        npad = div(n - flen, 2)
+        if npad > 0
+            P = zeros(T, n)
+        else
+            P = nothing
+        end
         v_fft = rfft(v, 1)
         nfreq = size(v_fft, 1)
-        iseven(n) && (center = n/2-1/2)
-        isodd(n) && (center = n/2-1/2)
+        iseven(n) && iseven(flen) && (center = n/2-1/2)
+        isodd(n) && isodd(flen) && (center = n/2-1/2)
+        iseven(n) && isodd(flen) && (center = n/2-1)
+        isodd(n) && iseven(flen) && (center = n/2-1)
         dw = T(2 * π / n * center)
         phase = exp.(im .* LinRange(0,nfreq-1,nfreq) .* dw )
     
         JopLn(; dom = dom, rng = rng, df! = JopFilterNd1d_df!, df′! = JopFilterNd1d_df′!, 
-            s = (; v_fft=v_fft, phase=phase))
+            s = (; P=P, npad=npad, v_fft=v_fft, phase=phase))
     elseif domain == "time"
         iseven(flen) && @warn "The filter length is even, which will cause a half-sample shift in the time domain."
-        dom = JetSpace(T, flen)
         JopLn(dom = dom, rng = rng, df! = JopFilterNd1dTD_df!, df′! = JopFilterNd1dTD_df′!, s = (; v=v,))
     else
         error("Unknown domain: $domain. Possible options are \"frequency\" and \"time\".")
@@ -231,12 +240,19 @@ function JopFilterRealTD_df′!(m::AbstractArray{T}, d::AbstractArray{T}; filter
     m
 end
 
-function JopFilterNd1d_df!(d::AbstractArray{T}, m::AbstractVector{T}; v_fft, phase, kwargs...) where {T<:Real}
-    n = length(m)
+function JopFilterNd1d_df!(d::AbstractArray{T}, m::AbstractVector{T}; P, npad, v_fft, phase, kwargs...) where {T<:Real}
+    flen = length(m)
+    n = size(d,1)
     _d = reshape(d, n, :)
     ntr = size(_d, 2)
 
-    m_fft = rfft(m)
+    tmp = m
+    if P !==  nothing
+        P .= 0
+        @views P[npad+1:npad+flen] .= m
+        tmp = P
+    end 
+    m_fft = rfft(tmp)
     m_fft_phase = m_fft .* phase
     @inbounds @threads for k = 1:ntr
         @inbounds begin
@@ -246,8 +262,9 @@ function JopFilterNd1d_df!(d::AbstractArray{T}, m::AbstractVector{T}; v_fft, pha
     d
 end
 
-function JopFilterNd1d_df′!(m::AbstractVector{T}, d::AbstractArray{T}; v_fft, phase, kwargs...) where {T<:Real}
-    n = length(m)
+function JopFilterNd1d_df′!(m::AbstractVector{T}, d::AbstractArray{T}; P, npad, v_fft, phase, kwargs...) where {T<:Real}
+    flen = length(m)
+    n = size(d,1)
     _d = reshape(d, n, :)
     ntr = size(_d, 2)
 
@@ -259,7 +276,12 @@ function JopFilterNd1d_df′!(m::AbstractVector{T}, d::AbstractArray{T}; v_fft, 
             m_fft .+= conj(v_fft[:,k] .* phase) .* d_fft[:,k]
         end
     end
-    m = irfft(m_fft, n)
+    if P === nothing
+        m = irfft(m_fft, n)
+    else
+        @views P .= irfft(m_fft, n)
+        @views m .= P[npad+1:npad+flen]
+    end
     m
 end
 
