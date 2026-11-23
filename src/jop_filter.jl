@@ -27,7 +27,7 @@ d = A*rand(domain(A))
 
     A = JopFilter(spc, h; domain = "frequency")
 
-where `h` is the filter. When domain = "frequency", if the filter length does not match that of the domain/range fast dimension, it will be padded or cut equally on both sides.
+where `h` is the filter. When domain = "frequency", if the filter length does not match that of the domain/range fast dimension, it will be padded or cut equally on both sides. When domain = "time", no padding or trimming is performed.
 
 # Example
 ```
@@ -67,12 +67,12 @@ function JopFilter(spc::JetSpace{T}, f::AbstractVector{T}; domain::String="frequ
 
     if domain == "frequency"
         
-        # trim the filter if it is too long but keep its original parity
+        # trim the filter if it is too long
         if nf > n
             istart = div(nf-n,2)+1
             iend = istart + n - 1
             f = f[istart:iend]
-        # pad the filter if it is too short but keep its original parity
+        # pad the filter if it is too short
         elseif nf < n
             istart = div(n-nf,2)
             iend = n - nf - istart
