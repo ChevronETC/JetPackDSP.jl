@@ -1,6 +1,6 @@
 using DSP, JetPackDSP, Jets, Test
 
-n1,n2,n3 = 80,70,10
+n1,n2,n3 = 81,70,10
 
 @testset "JopFilter linearity test, Lowpass, dimension=$(length(N)), T=$(T)" for T in (Float64,Float32), N in ( (n1,n2), (n1,n2,n3) )
     A = JopFilter(JetSpace(T,N), Lowpass(T(0.25)), Butterworth(T,5))
@@ -44,10 +44,18 @@ end
     @test lhs ≈ rhs
 end
 
-@testset "JotOpFilter dot product test, explicit time filter, nh=$nh" for nh in (n1,2*n1,div(n1,2), div(n1,2)+1)
+@testset "JotOpFilter dot product test, explicit time filter, domain=frequency, nh=$nh" for nh in (n1,2*n1,div(n1,2), div(n1,2)+1)
     N = (n1,n2,n3)
     T = Float64
     A = JopFilter(JetSpace(T,N), randn(T, nh))
+    lhs,rhs = dot_product_test(A, -1 .+ 2 .* rand(domain(A)), -1 .+ 2 .* rand(range(A)))
+    @test lhs ≈ rhs
+end
+
+@testset "JotOpFilter dot product test, explicit time filter, domain=time, nh=$nh" for nh in (n1,2*n1,div(n1,2), div(n1,2)+1, 11, 14)
+    N = (n1,n2,n3)
+    T = Float64
+    A = JopFilter(JetSpace(T,N), randn(T, nh); domain="time")
     lhs,rhs = dot_product_test(A, -1 .+ 2 .* rand(domain(A)), -1 .+ 2 .* rand(range(A)))
     @test lhs ≈ rhs
 end
@@ -70,23 +78,80 @@ end
     @test error < 1e-8   
 end
 
-@testset "JotOpFilter dot product test, 1D domain with ND filtering" begin
+@testset "JotOpFilter dot product test, 1D domain with ND filtering, domain=frequency, flen=$flen" for flen in (n1, 11, 14)
     N = (n1,n2,n3)
     T = Float64
     v = randn(T, N)
-    A = JopFilter(v)
+    A = JopFilter(v; flen=flen)
     lhs,rhs = dot_product_test(A, -1 .+ 2 .* rand(domain(A)), -1 .+ 2 .* rand(range(A)))
     @test lhs ≈ rhs
 end
 
-@testset "JotOpFilter parity test, 1D domain with ND filtering vs ND domain with 1D filtering" begin
+@testset "JotOpFilter dot product test, 1D domain with ND filtering, domain=time, flen=$flen" for flen in (n1, 11, 14)
     N = (n1,n2,n3)
     T = Float64
-    fil = randn(T, n1)
+    v = randn(T, N)
+    A = JopFilter(v; domain="time", flen=flen)
+    lhs,rhs = dot_product_test(A, -1 .+ 2 .* rand(domain(A)), -1 .+ 2 .* rand(range(A)))
+    @test lhs ≈ rhs
+end
+
+@testset "JotOpFilter parity test, 1D domain with ND filtering vs ND domain with 1D filtering, domain=frequency, flen=$flen" for flen in (n1, 11, 14)
+    N = (n1,n2,n3)
+    T = Float64
+    fil = randn(T, flen)
     v = randn(T, N)
     A = JopFilter(JetSpace(T,N), fil)
-    B = JopFilter(v)
+    B = JopFilter(v; flen=flen)
     dA = A*v
+    dB = B*fil
+    error = sum((dA-dB).^2) / sum(dA.^2)
+    @show error
+    @test error < 1e-10
+end
+
+@testset "JotOpFilter parity test, 1D domain with ND filtering vs ND domain with 1D filtering, domain=time, flen=$flen" for flen in (n1, 11, 14)
+    N = (n1,n2,n3)
+    T = Float64
+    fil = randn(T, flen)
+    v = randn(T, N)
+    A = JopFilter(JetSpace(T,N), fil; domain="time")
+    B = JopFilter(v; domain="time", flen=flen)
+    dA = A*v
+    dB = B*fil
+    error = sum((dA-dB).^2) / sum(dA.^2)
+    @show error
+    @test error < 1e-10
+end
+
+@testset "JotOpFilter frequency-time parity test - 1D filtering" begin
+    nf = 11
+    N = (n1,n2,n3)
+    Npad = (n1+2*nf, n2, n3)
+    T = Float64
+    fil = randn(T, nf)
+    v = zeros(T, Npad)
+    v[nf+1:nf+n1, :, :] .= randn(T, N)
+    A = JopFilter(JetSpace(T,Npad), fil)
+    B = JopFilter(JetSpace(T,Npad), fil; domain="time")
+    dA = A*v
+    dB = B*v
+    error = sum((dA-dB).^2) / sum(dA.^2)
+    @show error
+    @test error < 1e-10
+end
+
+@testset "JotOpFilter frequency-time parity test - ND filtering" begin
+    nf = 11
+    N = (nf,n2,n3)
+    Npad = (3*nf, n2, n3)
+    T = Float64
+    fil = randn(T, nf)
+    v = zeros(T, Npad)
+    v[nf+1:nf+nf, :, :] .= randn(T, N)
+    A = JopFilter(v; domain="frequency", flen=nf)
+    B = JopFilter(v; domain="time", flen=nf)
+    dA = A*fil
     dB = B*fil
     error = sum((dA-dB).^2) / sum(dA.^2)
     @show error
