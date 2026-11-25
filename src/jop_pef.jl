@@ -43,6 +43,31 @@ JopLnStreamingPEF1D(; v, kwargs...) = JopLn(JopStreamingPEF1D(;kwargs...), v)
 export JopNlStreamingPEF1D
 export JopLnStreamingPEF1D
 
+"""
+    A = JopStreamingPEF1D(v; n=7, λ=1e-1, save_pef = false)
+
+Similar to the non-linear operator above, but now it is a linear operator which estimates the PEF coefficients from a fixed input `v`.
+
+"""
+function JopStreamingPEF1D(v::AbstractArray{T}; n::Int=7, λ::Real=1e-1, save_pef::Bool=false) where {T<:AbstractFloat}
+    @assert n > 0 "n must be strictly greater than 0"
+    @assert λ > 0 "λ must be strictly greater than 0"
+    dom = JetSpace(T, size(v)...)
+    rng = dom
+
+    pef = nothing
+    if save_pef
+        trailing_shape = size(dom)[2:end]
+        trailing_dims = length(trailing_shape)
+        pef = zeros(T, n + 1, trailing_shape...)
+        pef[1:1, ntuple(_->Colon(), trailing_dims)...] .= 1
+    end
+
+    Jet(; dom, rng, df! = JopStreamingPEF1DLn_df!, df′! = JopStreamingPEF1DLn_df′!, s = (; v=v, n=n, λ=T(λ), pef = pef))
+end
+
+export JopStreamingPEF1D
+
 function JopStreamingPEF1D_f!(d::AbstractArray{T}, m::AbstractArray{T}; kwargs...) where {T<:AbstractFloat}
     n = kwargs[:n]
     λ = kwargs[:λ]
@@ -243,6 +268,108 @@ function JopStreamingPEF1D_df′!(δm::AbstractArray{T}, δd::AbstractArray{T}; 
     δm
 end
 
+function JopStreamingPEF1DLn_df!(δd::AbstractArray{T}, δm::AbstractArray{T}; kwargs...) where {T<:AbstractFloat}
+    v  = kwargs[:v]
+    n  = kwargs[:n]
+    λ  = kwargs[:λ]
+    nt = size(v, 1)
+    λ2 = λ^2
+
+    trailing_shape = size(δm)[2:end]
+    trailing_inds  = CartesianIndices(trailing_shape)
+    trailing_dims  = length(trailing_shape)
+
+    # Initialize filter coefficients to zero (leading coeff is always 1)
+    f = zeros(T, n, Threads.maxthreadid())
+
+    # holders for padded arrays with filter length
+    xpad  = zeros(T, n + nt, Threads.maxthreadid())
+    δxpad = zeros(T, n + nt, Threads.maxthreadid())
+
+    δd[1:1, ntuple(_->Colon(), trailing_dims)...] .= δm[1:1, ntuple(_->Colon(), trailing_dims)...] # first sample is always copied
+
+    # loop over trailing dims
+    @inbounds @threads for I in trailing_inds
+        idx = I.I
+        tid = Threads.threadid()
+
+        xpad[n+1:end, tid]  .= v[:, idx...]
+        δxpad[n+1:end, tid] .= δm[:, idx...]
+
+        fill!(@view(f[:, tid]), zero(T))
+        xTx = zero(T)
+
+        @fastmath for i = 2:nt
+            # Update PEF coefficients from v
+            xv  = @view xpad[i:n+i-1, tid]
+            δmv = @view δxpad[i:n+i-1, tid]
+            fv  = @view f[:, tid]
+            xTx += xpad[n+i-1, tid]^2 - xpad[i-1, tid]^2
+            xTf = @inbounds sum(xv[k]*fv[k] for k in eachindex(xv))
+            fv .-= (xpad[n+i, tid] + xTf) / (λ2 + xTx) .* xv
+
+            # Apply PEF to δm
+            δd[i, idx...] = δxpad[n+i, tid] + @inbounds sum(δmv[k]*fv[k] for k in eachindex(δmv))
+        end
+        if kwargs[:pef] !== nothing
+            @view(kwargs[:pef][end:-1:2, idx...]) .= @view(f[:, tid])
+        end
+    end
+    δd
+end
+
+function JopStreamingPEF1DLn_df′!(δm::AbstractArray{T}, δd::AbstractArray{T}; kwargs...) where {T<:AbstractFloat}
+    v  = kwargs[:v]
+    n  = kwargs[:n]
+    λ  = kwargs[:λ]
+    nt = size(v, 1)
+    λ2 = λ^2
+
+    trailing_shape = size(δm)[2:end]
+    trailing_inds  = CartesianIndices(trailing_shape)
+    trailing_dims  = length(trailing_shape)
+
+    # Initialize filter coefficients to zero (leading coeff is always 1)
+    f = zeros(T, n, Threads.maxthreadid())
+
+    # holders for padded arrays with filter length
+    xpad = zeros(T, n + nt, Threads.maxthreadid())
+    mpad = zeros(T, n + nt, Threads.maxthreadid())
+
+    δm[1:1, ntuple(_->Colon(), trailing_dims)...] .= δd[1:1, ntuple(_->Colon(), trailing_dims)...] # first sample is always copied
+
+    # loop over trailing dims
+    @inbounds @threads for I in trailing_inds
+        idx = I.I
+        tid = Threads.threadid()
+
+        xpad[n+1:end, tid] .= v[:, idx...]
+
+        fill!(@view(mpad[:, tid]), zero(T))
+        mpad[n+1, tid] = δd[1, idx...]  # adjoint of: δd[1] = δm[1]
+
+        fill!(@view(f[:, tid]), zero(T))
+        xTx = zero(T)
+
+        @fastmath for i = 2:nt
+            # Update PEF coefficients from v
+            xv = @view xpad[i:n+i-1, tid]
+            fv = @view f[:, tid]
+            xTx += xpad[n+i-1, tid]^2 - xpad[i-1, tid]^2
+            xTf = @inbounds sum(xv[k]*fv[k] for k in eachindex(xv))
+            fv .-= (xpad[n+i, tid] + xTf) / (λ2 + xTx) .* xv
+
+            # Adjoint of application: δd[i] = δm_i + dot(δmv, f_i)
+            di = δd[i, idx...]
+            mpad[n+i, tid] += di
+            mpad[i:n+i-1, tid] .+= fv .* di
+        end
+
+        δm[:, idx...] .= mpad[n+1:end, tid]
+    end
+    δm
+end
+
 """
     A = JopStreamingPEF2D(; dom, n1=7, n2=3, λ1=1e-1, λ2=1e-1, save_pef = false)
 
@@ -294,6 +421,33 @@ JopLnStreamingPEF2D(; v, kwargs...) = JopLn(JopStreamingPEF2D(;kwargs...), v)
 
 export JopNlStreamingPEF2D
 export JopLnStreamingPEF2D
+
+"""
+    A = JopStreamingPEF2D(v ; n1=7, n2=3, λ1=1e-1, λ2=1e-1, save_pef = false)
+
+Similar to the non-linear operator above, but now it is a linear operator which estimates the PEF coefficients from a fixed input `v`.
+
+"""
+function JopStreamingPEF2D(v::AbstractArray{T}; n1::Int=7, n2::Int=3, λ1::Real=1e-1, λ2::Real=1e-1, save_pef::Bool=false) where {T<:AbstractFloat}
+    @assert n1 > 0 "n1 must be strictly greater than 0"
+    @assert n2 > 0 "n2 must be strictly greater than 0"
+    @assert λ1^2 + λ2^2 > 0 "λ1^2 + λ2^2 must be strictly greater than 0"
+    @assert ndims(v) > 1 "number of dimensions of `v` must be greater than 1"
+    dom = JetSpace(T, size(v)...)
+    rng = dom
+
+    pef = nothing
+    if save_pef
+        trailing_shape = size(dom)[3:end]
+        trailing_dims = length(trailing_shape)
+        pef = zeros(T, n1, n2, trailing_shape...)
+        pef[div(n1,2)+1, 1:1, ntuple(_->Colon(), trailing_dims)...] .= 1
+    end
+
+    Jet(; dom, rng, df! = JopStreamingPEF2DLn_df!, df′! = JopStreamingPEF2DLn_df′!, s = (; v=v, n1=n1, n2=n2, λ1=T(λ1), λ2=T(λ2), pef=pef))
+end
+
+export JopStreamingPEF2D
 
 function JopStreamingPEF2D_f!(d::AbstractArray{T}, m::AbstractArray{T}; kwargs...) where {T<:AbstractFloat}
     nt = size(m, 1)
@@ -567,6 +721,139 @@ function JopStreamingPEF2D_df′!(δm::AbstractArray{T}, δd::AbstractArray{T}; 
                 g1v .*= (λ12 / λ)
 
                 mpad[n1+i1-hn:2*n1+i1-1-hn, i2+1:n2+i2, tid] .+= dv
+            end
+        end
+
+        δm[:, :, idx...] .= mpad[n1+1:n1+nt, n2+1:end, tid]
+    end
+    δm
+end
+
+function JopStreamingPEF2DLn_df!(δd::AbstractArray{T}, δm::AbstractArray{T}; kwargs...) where {T<:AbstractFloat}
+    v   = kwargs[:v]
+    nt  = size(v, 1)
+    nx  = size(v, 2)
+    n1  = kwargs[:n1]
+    n2  = kwargs[:n2]
+    λ12 = kwargs[:λ1]^2
+    λ22 = kwargs[:λ2]^2
+    λ   = λ12 + λ22
+
+    trailing_shape = size(δm)[3:end]
+    trailing_inds  = CartesianIndices(trailing_shape)
+
+    # Initialize filter coefficients to zero (leading coeff is always 1)
+    f1   = zeros(T, n1, n2, Threads.maxthreadid())
+    f2   = zeros(T, n1, n2, nt, Threads.maxthreadid()) # store filter from previous trace
+    fbar = zeros(T, n1, n2, Threads.maxthreadid())     # blended filter (thread-local)
+
+    # holders for padded arrays with filter length
+    ntpad = 2*n1 + nt
+    nxpad = n2 + nx
+    xpad  = zeros(T, ntpad, nxpad, Threads.maxthreadid())
+    δxpad = zeros(T, ntpad, nxpad, Threads.maxthreadid())
+
+    hn = div(n1, 2)  # half-width (active tap offset)
+
+    # loop over trailing dims
+    @inbounds @threads for I in trailing_inds
+        idx = I.I
+        tid = Threads.threadid()
+
+        xpad[n1+1:n1+nt,  n2+1:end, tid] .= v[:,:,idx...]
+        δxpad[n1+1:n1+nt, n2+1:end, tid] .= δm[:,:,idx...]
+
+        fill!(@view(f2[:, :, :, tid]), zero(T))
+
+        fbv = @view fbar[:, :, tid]
+
+        for i2 = 1:nx
+            fill!(@view(f1[:, :, tid]), zero(T))
+            for i1 = 1:nt
+                # Update PEF coefficients from v
+                xv  = @view xpad[n1+i1-hn:2*n1+i1-1-hn, i2+1:n2+i2, tid]
+                δmv = @view δxpad[n1+i1-hn:2*n1+i1-1-hn, i2+1:n2+i2, tid]
+                f1v = @view f1[:, :, tid]
+                f2v = @view f2[:, :, i1, tid]
+                @. fbv = (λ12 * f1v + λ22 * f2v) / λ
+                sv  = @view xv[hn+1:end, end]
+                xTx = dot(xv, xv) - dot(sv, sv)
+                xTf = dot(xv, fbv)
+                f1v .= fbv .- (xpad[n1+i1,n2+i2,tid] + xTf) / (λ + xTx) .* xv
+                f1v[hn+1:end, end] .= 0  # zero out inactive coeffs
+                @view(f2[:,:,i1,tid]) .= f1v  # store current filter for next trace
+
+                # Apply PEF to δm
+                δd[i1,i2,idx...] = δxpad[n1+i1,n2+i2,tid] + dot(δmv, f1v)
+            end
+        end
+        if kwargs[:pef] !== nothing
+            @view(kwargs[:pef][end:-1:1,end:-1:1,idx...]) .= @view(f1[:,:,tid])
+            @view(kwargs[:pef][hn+1,1:1,idx...]) .= 1
+        end
+    end
+    δd
+end
+
+function JopStreamingPEF2DLn_df′!(δm::AbstractArray{T}, δd::AbstractArray{T}; kwargs...) where {T<:AbstractFloat}
+    v   = kwargs[:v]
+    nt  = size(v, 1)
+    nx  = size(v, 2)
+    n1  = kwargs[:n1]
+    n2  = kwargs[:n2]
+    λ12 = kwargs[:λ1]^2
+    λ22 = kwargs[:λ2]^2
+    λ   = λ12 + λ22
+
+    trailing_shape = size(δm)[3:end]
+    trailing_inds  = CartesianIndices(trailing_shape)
+
+    # Initialize filter coefficients to zero (leading coeff is always 1)
+    f1   = zeros(T, n1, n2, Threads.maxthreadid())
+    f2   = zeros(T, n1, n2, nt, Threads.maxthreadid()) # store filter from previous trace
+    fbar = zeros(T, n1, n2, Threads.maxthreadid())     # blended filter (thread-local)
+
+    # holders for padded arrays with filter length
+    ntpad = 2*n1 + nt
+    nxpad = n2 + nx
+    xpad  = zeros(T, ntpad, nxpad, Threads.maxthreadid())
+    mpad  = zeros(T, ntpad, nxpad, Threads.maxthreadid())
+
+    hn = div(n1, 2)  # half-width (active tap offset)
+
+    fill!(δm, zero(T))
+
+    # loop over trailing dims
+    @inbounds @threads for I in trailing_inds
+        idx = I.I
+        tid = Threads.threadid()
+
+        xpad[n1+1:n1+nt, n2+1:end, tid] .= v[:,:,idx...]
+
+        fill!(@view(mpad[:, :, tid]), zero(T))
+        fill!(@view(f2[:, :, :, tid]), zero(T))
+
+        fbv = @view fbar[:, :, tid]
+
+        for i2 = 1:nx
+            fill!(@view(f1[:, :, tid]), zero(T))
+            for i1 = 1:nt
+                # Update PEF coefficients from v
+                xv  = @view xpad[n1+i1-hn:2*n1+i1-1-hn, i2+1:n2+i2, tid]
+                f1v = @view f1[:, :, tid]
+                f2v = @view f2[:, :, i1, tid]
+                @. fbv = (λ12 * f1v + λ22 * f2v) / λ
+                sv  = @view xv[hn+1:end, end]
+                xTx = dot(xv, xv) - dot(sv, sv)
+                xTf = dot(xv, fbv)
+                f1v .= fbv .- (xpad[n1+i1,n2+i2,tid] + xTf) / (λ + xTx) .* xv
+                f1v[hn+1:end, end] .= 0  # zero out inactive coeffs
+                @view(f2[:,:,i1,tid]) .= f1v  # store current filter for next trace
+
+                # Adjoint of application: δd[i1,i2] = δm[i1,i2] + dot(δmv, f1v)
+                di = δd[i1, i2, idx...]
+                mpad[n1+i1, n2+i2, tid] += di
+                mpad[n1+i1-hn:2*n1+i1-1-hn, i2+1:n2+i2, tid] .+= f1v .* di
             end
         end
 
