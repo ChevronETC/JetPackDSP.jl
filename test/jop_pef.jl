@@ -220,7 +220,7 @@ end
     nt, nx, ny = 21, 4, 1
     dom = JetSpace(Float64, (nt, nx, ny))
     v = rand(dom)
-    A = JopLn(JopStreamingPEF1D(v))
+    A = JopStreamingPEF1D(v)
 
     m = rand(domain(A))
     d = rand(range(A))
@@ -230,7 +230,7 @@ end
 
     dom = JetSpace(Float64, (nt))
     v = rand(dom)
-    A = JopLn(JopStreamingPEF1D(v))
+    A = JopStreamingPEF1D(v)
 
     m = rand(domain(A))
     d = rand(range(A))
@@ -244,7 +244,7 @@ end
     nt, nx, ny = 21, 11, 3
     dom = JetSpace(Float64, (nt, nx, ny))
     v = rand(dom)
-    A = JopLn(JopStreamingPEF2D(v))
+    A = JopStreamingPEF2D(v)
 
     m = rand(domain(A))
     d = rand(range(A))
@@ -254,7 +254,7 @@ end
 
     dom = JetSpace(Float64, (nt,nx))
     v = rand(dom)
-    A = JopLn(JopStreamingPEF2D(v))
+    A = JopStreamingPEF2D(v)
 
     m = rand(domain(A))
     d = rand(range(A))
@@ -269,8 +269,8 @@ end
     dom = JetSpace(Float64, (nt, nx, ny))
     n1 = 7
     v = rand(dom)
-    A = JopLn(JopStreamingPEF2D(v; n1 = n1, n2 = 1, λ1 = 0.1, λ2 = 0))
-    B = JopLn(JopStreamingPEF1D(v; n = div(n1,2), λ = 0.1)) # the number of active coefficients is actually n1/2
+    A = JopStreamingPEF2D(v; n1 = n1, n2 = 1, λ1 = 0.1, λ2 = 0)
+    B = JopStreamingPEF1D(v; n = div(n1,2), λ = 0.1) # the number of active coefficients is actually n1/2
 
     m = rand(domain(A))
     d1 = A * m
@@ -285,8 +285,8 @@ end
     dom = JetSpace(Float64, (nx, nt, ny))
     n2 = 7
     v = rand(dom)
-    A = JopLn(JopStreamingPEF2D(v; n1 = 1, n2 = n2, λ1 = 0, λ2 = 0.1))
-    B = JopLn(JopStreamingPEF1D(permutedims(v, (2, 1, 3)); n = n2-1, λ = 0.1)) # the number of active coefficients is actually n2-1
+    A = JopStreamingPEF2D(v; n1 = 1, n2 = n2, λ1 = 0, λ2 = 0.1)
+    B = JopStreamingPEF1D(permutedims(v, (2, 1, 3)); n = n2-1, λ = 0.1) # the number of active coefficients is actually n2-1
 
     m = rand(domain(A))
     d1 = A * m

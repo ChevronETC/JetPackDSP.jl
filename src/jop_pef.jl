@@ -63,7 +63,7 @@ function JopStreamingPEF1D(v::AbstractArray{T}; n::Int=7, λ::Real=1e-1, save_pe
         pef[1:1, ntuple(_->Colon(), trailing_dims)...] .= 1
     end
 
-    Jet(; dom, rng, df! = JopStreamingPEF1DLn_df!, df′! = JopStreamingPEF1DLn_df′!, s = (; v=v, n=n, λ=T(λ), pef = pef))
+    JopLn(; dom, rng, df! = JopStreamingPEF1DLn_df!, df′! = JopStreamingPEF1DLn_df′!, s = (; v=v, n=n, λ=T(λ), pef = pef))
 end
 
 export JopStreamingPEF1D
@@ -444,7 +444,7 @@ function JopStreamingPEF2D(v::AbstractArray{T}; n1::Int=7, n2::Int=3, λ1::Real=
         pef[div(n1,2)+1, 1:1, ntuple(_->Colon(), trailing_dims)...] .= 1
     end
 
-    Jet(; dom, rng, df! = JopStreamingPEF2DLn_df!, df′! = JopStreamingPEF2DLn_df′!, s = (; v=v, n1=n1, n2=n2, λ1=T(λ1), λ2=T(λ2), pef=pef))
+    JopLn(; dom, rng, df! = JopStreamingPEF2DLn_df!, df′! = JopStreamingPEF2DLn_df′!, s = (; v=v, n1=n1, n2=n2, λ1=T(λ1), λ2=T(λ2), pef=pef))
 end
 
 export JopStreamingPEF2D
